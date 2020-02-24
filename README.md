@@ -1,6 +1,8 @@
 MKCooling-ESP32
 ===============
 cooling for Mac mini 
+
+getting started
 1. using Wemos D1 V1.0.0-ESP32 as MCU
 <p align="center" >
   <img src="https://github.com/mistak1992/MKCooling-ESP32/blob/master/img/Wemos-D1-V1-0-0-ESP32-WiFi-and-Bluetooth-module-development-module-CP2104-development-board-Computer.jpg?raw=true" float=left>
