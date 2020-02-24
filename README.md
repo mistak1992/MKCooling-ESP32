@@ -14,4 +14,7 @@ cooling for Mac mini
   <img src="https://github.com/mistak1992/MKCooling/blob/master/MKCooling_preview.png?raw=true" title="MKCooling_preview" float=left>
 </p>
 4. the enclosure is base on <a href="https://www.thingiverse.com/thing:3167987">M3 Mac Mini Mount</a> by EidolonNight 
-
+<p align="center" >
+  <img src="https://github.com/mistak1992/MKCooling/blob/master/MKCooling_preview.png?raw=true" title="MKCooling_preview" float=left>
+</p>
+https://www.thingiverse.com/thing:4181227
