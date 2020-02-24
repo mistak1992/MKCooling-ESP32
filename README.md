@@ -27,7 +27,7 @@ cooling for Mac mini
 [MKCooling](https://www.thingiverse.com/thing:4181227)
 
 <p align="center" >
-  <img src="https://github.com/mistak1992/MKCooling-ESP32/blob/master/img/MKCooling_enclosure.jpg?raw=true" float=left>
+  <img src="https://github.com/mistak1992/MKCooling-ESP32/blob/master/img/MKCooling_enclosure.png?raw=true" float=left>
 </p>
 
 
