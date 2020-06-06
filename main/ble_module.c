@@ -27,13 +27,15 @@ bool switcher = false;
 
 enum mkc_ble_state state;
 
-static update_callback_t callback_t;
+static receive_datas_callback_t callback_t;
 
 static uint8_t adv_config_done = 0;
 
 static uint16_t cooling_handle_table[MKC_IDX_NB];
 
-static uint8_t test_manufacturer[6]={'M', 'I', 'S', 'T', 'A', 'K'};//
+uint8_t local_mac_address[6];
+
+uint8_t manufacturer_data[12]={'M', 'K', 0x00, 0x01};
 
 static uint8_t sec_service_uuid[16] = {
     /* LSB <--------------------------------------------------------------------------------> MSB */
@@ -42,14 +44,14 @@ static uint8_t sec_service_uuid[16] = {
 };
 
 // config adv data
-static esp_ble_adv_data_t cooling_adv_config = {
+esp_ble_adv_data_t cooling_adv_config = {
     .set_scan_rsp = false,
     .include_txpower = true,
     .min_interval = 0x0006, //slave connection min interval, Time = min_interval * 1.25 msec
     .max_interval = 0x0010, //slave connection max interval, Time = max_interval * 1.25 msec
     .appearance = 0x00,
-    .manufacturer_len = sizeof(test_manufacturer),
-    .p_manufacturer_data = test_manufacturer,
+    .manufacturer_len = sizeof(manufacturer_data),
+    .p_manufacturer_data = manufacturer_data,
     .service_data_len = 0,
     .p_service_data = NULL,
     .service_uuid_len = sizeof(sec_service_uuid),
@@ -60,8 +62,8 @@ static esp_ble_adv_data_t cooling_adv_config = {
 static esp_ble_adv_data_t cooling_scan_rsp_config = {
     .set_scan_rsp = true,
     .include_name = true,
-    .manufacturer_len = sizeof(test_manufacturer),
-    .p_manufacturer_data = test_manufacturer,
+    .manufacturer_len = sizeof(manufacturer_data),
+    .p_manufacturer_data = manufacturer_data,
 };
 
 static esp_ble_adv_params_t cooling_adv_add_device_params = {
@@ -125,6 +127,7 @@ static const uint16_t character_declaration_uuid = ESP_GATT_UUID_CHAR_DECLARE;
 // static const uint8_t char_prop_notify = ESP_GATT_CHAR_PROP_BIT_NOTIFY;
 static const uint8_t char_prop_read = ESP_GATT_CHAR_PROP_BIT_READ;
 static const uint8_t char_prop_read_write = ESP_GATT_CHAR_PROP_BIT_WRITE|ESP_GATT_CHAR_PROP_BIT_READ;
+static const uint8_t char_prop_read_write_notify = ESP_GATT_CHAR_PROP_BIT_WRITE|ESP_GATT_CHAR_PROP_BIT_READ|ESP_GATT_CHAR_PROP_BIT_NOTIFY;
 
 /// MKCooling Sensor Service - Temperature Integer Characteristic, write&read
 static const uint16_t cooling_temp_int_uuid = 0x2A91;
@@ -169,6 +172,10 @@ static uint16_t auth_val[1] = {0x0000};
 /// MKCooling Sensor Service - MKCooling Delay, write&read
 static const uint16_t cooling_delay_uuid = 0x2A9B;
 static uint16_t delay_val[1] = {0x0000};
+
+/// MKCooling Sensor Service - MKCooling WriteIn, write&read
+static const uint16_t cooling_write_in_uuid = 0x1891;
+static uint8_t write_in_val[16] = {0x01};
 
 /// Full HRS Database Description - Used to add attributes into the database
 static const esp_gatts_attr_db_t cooling_gatt_db[MKC_IDX_NB] =
@@ -287,6 +294,16 @@ static const esp_gatts_attr_db_t cooling_gatt_db[MKC_IDX_NB] =
     [MKC_IDX_DELAY_VAL] =
     {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_delay_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
       sizeof(uint16_t), sizeof(delay_val), (uint16_t *)delay_val}},
+
+        // MKCooling Delay Characteristic Declaration
+    [MKC_IDX_WRITEIN_CHAR] =
+    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+      CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write_notify}},
+
+    // MKCooling WriteIn Characteristic Value
+    [MKC_IDX_WRITEIN_VAL] =
+    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_write_in_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
+      sizeof(uint8_t) * 16, sizeof(write_in_val), (uint8_t *)write_in_val}},
 };
 
 static char *esp_key_type_to_str(esp_ble_key_type_t key_type)
@@ -420,6 +437,7 @@ uint16_t get_attrubutes(enum mkc_idx_attributes attr_idx){
 }
 
 uint16_t get_attrubutes_with_handle(uint16_t handle){
+    ESP_LOGI(GATTS_TABLE_TAG, "debug write handle : %u\n", handle);
     return get_attrubutes(handle - 40);
 }
 
@@ -498,6 +516,7 @@ void set_attributes(enum mkc_idx_attributes attr_idx, uint16_t value){
 }
 
 void set_attributes_with_handle(uint16_t handle, uint16_t value){
+    ESP_LOGI(GATTS_TABLE_TAG, "debug set handle : %u\n", handle);
     set_attributes(handle - 40, value);
 }
 
@@ -647,7 +666,6 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
             ESP_LOGE(GATTS_TABLE_TAG, "config local privacy failed, error status = %x", param->local_privacy_cmpl.status);
             break;
         }
-
         esp_err_t ret = esp_ble_gap_config_adv_data(&cooling_adv_config);
         if (ret){
             ESP_LOGE(GATTS_TABLE_TAG, "config adv data failed, error code = %x", ret);
@@ -807,7 +825,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
     } while (0);
 }
 
-void ble_module_init(update_callback_t update_callback)
+void ble_module_init(receive_datas_callback_t update_callback)
 {
     if (update_callback != NULL)
     {
@@ -815,6 +833,15 @@ void ble_module_init(update_callback_t update_callback)
     }
 
     esp_err_t ret;
+
+    // check Mac Address
+    ESP_LOGE(GATTS_TABLE_TAG, "========== mac address =========");
+    esp_read_mac(local_mac_address, ESP_MAC_BT);
+    // load MAC address to manufacturer_data
+    for (size_t i = 0; i < 6; i++)
+    {
+        manufacturer_data[i + 3] = local_mac_address[i];
+    }
 
     // Initialize NVS.
     ret = nvs_flash_init();

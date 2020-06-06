@@ -1,5 +1,20 @@
 /*
    This example code is in the Public Domain (or CC0 licensed, at your option.)
+{
+    "explorer.confirmDelete": false,
+    "terminal.integrated.setLocaleVariables": true,
+    "C_Cpp.updateChannel": "Insiders",
+    "dart.openDevTools": "flutter",
+    "dart.debugExternalLibraries": false,
+    "dart.debugSdkLibraries": false,
+    "terminal.integrated.shell.osx": "/bin/zsh",
+    "idf.pythonSystemBinPath": "/Users/mist/Documents/esp/python_env/idf4.0_py2.7_env/bin/python",
+    "idf.espIdfPath": "/Users/mist/Documents/esp/esp-idf",
+    "idf.toolsPath": "/Users/mist/Documents/esp",
+    "idf.customExtraPaths": ".:/usr/bin:/Users/mist/Documents/esp/tools/xtensa-esp32-elf/esp-2019r2-8.2.0/xtensa-esp32-elf/bin:/Users/mist/Documents/esp/tools/esp32ulp-elf/2.28.51.20170517/esp32ulp-elf-binutils/bin:/Users/mist/Documents/esp/tools/openocd-esp32/v0.10.0-esp32-20190313/openocd-esp32/bin",
+    "idf.customExtraVars": "{\"OPENOCD_SCRIPTS\":\"/Users/mist/Documents/esp/tools/openocd-esp32/v0.10.0-esp32-20190313/openocd-esp32/share/openocd/scripts\"}",
+    "idf.showOnboardingOnInit": false
+}
 
    Unless required by applicable law or agreed to in writing, this
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
@@ -74,6 +89,9 @@ enum mkc_idx_attributes
     MKC_IDX_DELAY_CHAR,
     MKC_IDX_DELAY_VAL,
 
+    MKC_IDX_WRITEIN_CHAR,
+    MKC_IDX_WRITEIN_VAL,
+
     MKC_IDX_NB,
 };
 
@@ -82,12 +100,12 @@ enum mkc_ble_state{
     MKC_BLE_STATE_CONNECTED,
 };
 
-typedef void (*update_callback_t)(enum mkc_idx_attributes attr_idx, uint16_t value);
+typedef void (*receive_datas_callback_t)(enum mkc_idx_attributes attr_idx, uint16_t value);
 
     enum mkc_ble_state ble_get_state();
     void set_attributes(enum mkc_idx_attributes attr_idx, uint16_t value);
     uint16_t get_attrubutes(enum mkc_idx_attributes attr_idx);
-    void ble_module_init(update_callback_t update_callback);
+    void ble_module_init(receive_datas_callback_t update_callback);
     void ble_module_reset();
     void ble_module_deinit();
     void set_sleep(bool is_sleep);

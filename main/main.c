@@ -18,14 +18,15 @@
 #include "include/pwm_module.h"
 #include "include/temp_ir_sensor.h"
 #include "include/persist_module.h"
+#include "include/mkc_protocol_adaptor.h"
 
 #define MAIN_TAG "MAIN"
 
-#define HALL_COUNTER_MODULE
-#define PWM_MODULE
-#define MLX90614_IRTEMP_MODULE
-#define BLE_MODULE
-#define PERSIST_MODULE
+// #define HALL_COUNTER_MODULE
+// #define PWM_MODULE
+// #define MLX90614_IRTEMP_MODULE
+// #define BLE_MODULE
+// #define PERSIST_MODULE
 
 #define LED_R_IO 5
 #define HALL_GPIO 13
@@ -229,6 +230,18 @@ void app_main()
     #endif
     
     printf("Hello world!\n");
+
+    mkc_protocol_model_t model;
+    model.hdr = 0x10;
+    model.typ = 0x02;
+    model.len = 12;
+    uint8_t data[9] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99};
+    model.data = &data;
+    uint8_t token[4] = {0xaa, 0xbb, 0xcc, 0xdd};
+    model.token = &token;
+    model.crc = 0x99;
+    uint8_t *datas;
+    mkc_protocol_model_to_data(&datas, &model);
 
     /* Print chip information */
     esp_chip_info_t chip_info;
