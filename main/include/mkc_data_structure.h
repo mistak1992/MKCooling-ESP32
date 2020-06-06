@@ -1,11 +1,12 @@
 #ifndef _MKC_DATA_STRUCTURE_H_
 #define _MKC_DATA_STRUCTURE_H_
 #include <stdio.h>
+#include <stdlib.h>
 
 typedef struct 
 {
-    uint16_t temp_int;
-    uint16_t temp_dec;
+    uint8_t temp_int;
+    uint8_t temp_dec;
 } mkc_temp_ir_data_t;
 
 typedef struct

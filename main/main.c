@@ -231,17 +231,33 @@ void app_main()
     
     printf("Hello world!\n");
 
+    uint8_t fakeData[16] = {0x10, 0x02, 0x08, 0x1e, 0x02, 0x19, 0x05, 0x56, 0x08, 0x00, 0x64, 0x1f, 0x96, 0x0c, 0x24, 0xd2};
+
     mkc_protocol_model_t model;
     model.hdr = 0x10;
     model.typ = 0x02;
-    model.len = 12;
-    uint8_t data[9] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99};
-    model.data = &data;
+    model.len = 8;
+    // uint8_t data[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+    // model.data = &data;
+    mkc_temp_ir_data_t temp_o;
+    temp_o.temp_int = 30;
+    temp_o.temp_dec = 2;
+    mkc_temp_ir_data_t temp_a;
+    temp_a.temp_int = 25;
+    temp_a.temp_dec = 5;
+    model.temp_ir_a_data = temp_a;
+    model.temp_ir_o_data = temp_o;
+    model.fan_duty = 86;
+    model.fan_rpm = 2048;
+    model.delay = 0x64;
     uint8_t token[4] = {0xaa, 0xbb, 0xcc, 0xdd};
     model.token = &token;
     model.crc = 0x99;
     uint8_t *datas;
-    mkc_protocol_model_to_data(&datas, &model);
+    mkc_protocol_model_to_data(&datas, model);
+
+    model = mkc_protocol_data_to_model(&datas);
+    printf("typ: %02u\n", model.typ);
 
     /* Print chip information */
     esp_chip_info_t chip_info;
