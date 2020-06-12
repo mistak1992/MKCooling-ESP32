@@ -5,7 +5,8 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
-#include "include/ble_module.h"
+#include "include/mkc_ble_module.h"
+#include "esp_system.h"
 
 #define GATTS_TABLE_TAG "BLE_MODULE"
 
@@ -27,7 +28,9 @@ bool switcher = false;
 
 enum mkc_ble_state state;
 
-static receive_datas_callback_t callback_t;
+static receive_datas_callback_t receive_callback_t;
+
+static compose_response_callback_t response_callback_t;
 
 static uint8_t adv_config_done = 0;
 
@@ -125,53 +128,53 @@ static const uint16_t primary_service_uuid = ESP_GATT_UUID_PRI_SERVICE;
 static const uint16_t character_declaration_uuid = ESP_GATT_UUID_CHAR_DECLARE;
 // static const uint16_t character_client_config_uuid = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
 // static const uint8_t char_prop_notify = ESP_GATT_CHAR_PROP_BIT_NOTIFY;
-static const uint8_t char_prop_read = ESP_GATT_CHAR_PROP_BIT_READ;
-static const uint8_t char_prop_read_write = ESP_GATT_CHAR_PROP_BIT_WRITE|ESP_GATT_CHAR_PROP_BIT_READ;
+// static const uint8_t char_prop_read = ESP_GATT_CHAR_PROP_BIT_READ;
+// static const uint8_t char_prop_read_write = ESP_GATT_CHAR_PROP_BIT_WRITE|ESP_GATT_CHAR_PROP_BIT_READ;
 static const uint8_t char_prop_read_write_notify = ESP_GATT_CHAR_PROP_BIT_WRITE|ESP_GATT_CHAR_PROP_BIT_READ|ESP_GATT_CHAR_PROP_BIT_NOTIFY;
 
-/// MKCooling Sensor Service - Temperature Integer Characteristic, write&read
-static const uint16_t cooling_temp_int_uuid = 0x2A91;
-static uint16_t temperature_int_val[1] = {0x0000};
+// /// MKCooling Sensor Service - Temperature Integer Characteristic, write&read
+// static const uint16_t cooling_temp_int_uuid = 0x2A91;
+// static uint8_t temperature_int_val[1] = {0x00};
 
-/// MKCooling Sensor Service - Temperature Decimal Characteristic, write&read
-static const uint16_t cooling_temp_dec_uuid = 0x2A92;
-static uint16_t temperature_dec_val[1] = {0x0000};
+// /// MKCooling Sensor Service - Temperature Decimal Characteristic, write&read
+// static const uint16_t cooling_temp_dec_uuid = 0x2A92;
+// static uint16_t temperature_dec_val[1] = {0x0000};
 
-/// MKCooling Sensor Service - IR Temperature Object Integer characteristic, read
-static const uint16_t cooling_ir_tempo_int_uuid = 0x2A93;
-static uint16_t ir_temperature_object_int_val[1] ={0x0000};
+// /// MKCooling Sensor Service - IR Temperature Object Integer characteristic, read
+// static const uint16_t cooling_ir_tempo_int_uuid = 0x2A93;
+// static uint16_t ir_temperature_object_int_val[1] ={0x0000};
 
-/// MKCooling Sensor Service - IR Temperature Object Decimal characteristic, read
-static const uint16_t cooling_ir_tempo_dec_uuid = 0x2A94;
-static uint16_t ir_temperature_object_dec_val[1] ={0x0000};
+// /// MKCooling Sensor Service - IR Temperature Object Decimal characteristic, read
+// static const uint16_t cooling_ir_tempo_dec_uuid = 0x2A94;
+// static uint16_t ir_temperature_object_dec_val[1] ={0x0000};
 
-/// MKCooling Sensor Service - IR Temperature Ambient Integer characteristic, read
-static const uint16_t cooling_ir_tempa_int_uuid = 0x2A95;
-static uint16_t ir_temperature_ambient_int_val[1] ={0x0000};
+// /// MKCooling Sensor Service - IR Temperature Ambient Integer characteristic, read
+// static const uint16_t cooling_ir_tempa_int_uuid = 0x2A95;
+// static uint16_t ir_temperature_ambient_int_val[1] ={0x0000};
 
-/// MKCooling Sensor Service - IR Temperature Ambient Decimal characteristic, read
-static const uint16_t cooling_ir_tempa_dec_uuid = 0x2A96;
-static uint16_t ir_temperature_ambient_dec_val[1] ={0x0000};
+// /// MKCooling Sensor Service - IR Temperature Ambient Decimal characteristic, read
+// static const uint16_t cooling_ir_tempa_dec_uuid = 0x2A96;
+// static uint16_t ir_temperature_ambient_dec_val[1] ={0x0000};
 
-/// MKCooling Sensor Service - MKCooling FanSpeed RPM characteristic, read
-static const uint16_t cooling_fan_speed_rpm_uuid = 0x2A97;
-static uint16_t fan_speed_rpm_val[1] = {0x0000};
+// /// MKCooling Sensor Service - MKCooling FanSpeed RPM characteristic, read
+// static const uint16_t cooling_fan_speed_rpm_uuid = 0x2A97;
+// static uint16_t fan_speed_rpm_val[1] = {0x0000};
 
-/// MKCooling Sensor Service - MKCooling FanSpeed Percentage characteristic, write&read
-static const uint16_t cooling_fan_speed_percentage_uuid = 0x2A98;
-static uint16_t fan_speed_percentage_val[1] = {0x0000};
+// /// MKCooling Sensor Service - MKCooling FanSpeed Percentage characteristic, write&read
+// static const uint16_t cooling_fan_speed_percentage_uuid = 0x2A98;
+// static uint16_t fan_speed_percentage_val[1] = {0x0000};
 
-/// MKCooling Sensor Service - MKCooling Switch, write&read
-static const uint16_t cooling_switch_a_uuid = 0x2A99;
-static uint16_t switch_a_val[1] = {0x0000};
+// /// MKCooling Sensor Service - MKCooling Switch, write&read
+// static const uint16_t cooling_switch_a_uuid = 0x2A99;
+// static uint16_t switch_a_val[1] = {0x0000};
 
-/// MKCooling Sensor Service - MKCooling Auth, write&read
-static const uint16_t cooling_auth_uuid = 0x2A9A;
-static uint16_t auth_val[1] = {0x0000};
+// /// MKCooling Sensor Service - MKCooling Auth, write&read
+// static const uint16_t cooling_auth_uuid = 0x2A9A;
+// static uint16_t auth_val[1] = {0x0000};
 
-/// MKCooling Sensor Service - MKCooling Delay, write&read
-static const uint16_t cooling_delay_uuid = 0x2A9B;
-static uint16_t delay_val[1] = {0x0000};
+// /// MKCooling Sensor Service - MKCooling Delay, write&read
+// static const uint16_t cooling_delay_uuid = 0x2A9B;
+// static uint16_t delay_val[1] = {0x0000};
 
 /// MKCooling Sensor Service - MKCooling WriteIn, write&read
 static const uint16_t cooling_write_in_uuid = 0x1891;
@@ -186,114 +189,114 @@ static const esp_gatts_attr_db_t cooling_gatt_db[MKC_IDX_NB] =
       sizeof(uint16_t), sizeof(cooling_svc), (uint8_t *)&cooling_svc}},
 
     // MKCooling Temperature Integer Characteristic Declaration
-    [MKC_IDX_TEMP_INT_CHAR] =
-    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
+    // [MKC_IDX_TEMP_INT_CHAR] =
+    // {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
 
-    // MKCooling Temperature Integer Characteristic Value
-    [MKC_IDX_TEMP_INT_VAL] =
-    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_temp_int_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
-      sizeof(uint16_t), sizeof(temperature_int_val), (uint16_t *)temperature_int_val}},
+    // // MKCooling Temperature Integer Characteristic Value
+    // [MKC_IDX_TEMP_INT_VAL] =
+    // {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_temp_int_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
+    //   sizeof(uint8_t), sizeof(temperature_int_val), (uint8_t *)temperature_int_val}},
 
-    // MKCooling Temperature Decimal Characteristic Declaration
-    [MKC_IDX_TEMP_DEC_CHAR] =
-    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
+    // // MKCooling Temperature Decimal Characteristic Declaration
+    // [MKC_IDX_TEMP_DEC_CHAR] =
+    // {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
 
-    // MKCooling Temperature Decimal Characteristic Value
-    [MKC_IDX_TEMP_DEC_VAL] =
-    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_temp_dec_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
-      sizeof(uint16_t), sizeof(temperature_dec_val), (uint16_t *)temperature_dec_val}},
+    // // MKCooling Temperature Decimal Characteristic Value
+    // [MKC_IDX_TEMP_DEC_VAL] =
+    // {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_temp_dec_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
+    //   sizeof(uint16_t), sizeof(temperature_dec_val), (uint16_t *)temperature_dec_val}},
 
-    // MKCooling IR Temperature Object Integer Characteristic Declaration
-    [MKC_IDX_IR_TEMPO_INT_CHAR] =
-    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
+    // // MKCooling IR Temperature Object Integer Characteristic Declaration
+    // [MKC_IDX_IR_TEMPO_INT_CHAR] =
+    // {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
 
-    // MKCooling IR Temperature Object Integer Characteristic Value
-    [MKC_IDX_IR_TEMPO_INT_VAL] =
-    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_ir_tempo_int_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      sizeof(uint16_t), sizeof(ir_temperature_object_int_val), (uint16_t *)ir_temperature_object_int_val}},
+    // // MKCooling IR Temperature Object Integer Characteristic Value
+    // [MKC_IDX_IR_TEMPO_INT_VAL] =
+    // {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_ir_tempo_int_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   sizeof(uint16_t), sizeof(ir_temperature_object_int_val), (uint16_t *)ir_temperature_object_int_val}},
 
-    // MKCooling IR Temperature Object Decimal Characteristic Declaration
-    [MKC_IDX_IR_TEMPO_DEC_CHAR] =
-    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
+    // // MKCooling IR Temperature Object Decimal Characteristic Declaration
+    // [MKC_IDX_IR_TEMPO_DEC_CHAR] =
+    // {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
 
-    // MKCooling IR Temperature Object Decimal Characteristic Value
-    [MKC_IDX_IR_TEMPO_DEC_VAL] =
-    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_ir_tempo_dec_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      sizeof(uint16_t), sizeof(ir_temperature_object_dec_val), (uint16_t *)ir_temperature_object_dec_val}},
+    // // MKCooling IR Temperature Object Decimal Characteristic Value
+    // [MKC_IDX_IR_TEMPO_DEC_VAL] =
+    // {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_ir_tempo_dec_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   sizeof(uint16_t), sizeof(ir_temperature_object_dec_val), (uint16_t *)ir_temperature_object_dec_val}},
 
-    // MKCooling IR Temperature Ambient Integer Characteristic Declaration
-    [MKC_IDX_IR_TEMPA_INT_CHAR] =
-    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
+    // // MKCooling IR Temperature Ambient Integer Characteristic Declaration
+    // [MKC_IDX_IR_TEMPA_INT_CHAR] =
+    // {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
 
-    // MKCooling IR Temperature Ambient Integer Characteristic Value
-    [MKC_IDX_IR_TEMPA_INT_VAL] =
-    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_ir_tempa_int_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      sizeof(uint16_t), sizeof(ir_temperature_ambient_int_val), (uint16_t *)ir_temperature_ambient_int_val}},
+    // // MKCooling IR Temperature Ambient Integer Characteristic Value
+    // [MKC_IDX_IR_TEMPA_INT_VAL] =
+    // {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_ir_tempa_int_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   sizeof(uint16_t), sizeof(ir_temperature_ambient_int_val), (uint16_t *)ir_temperature_ambient_int_val}},
 
-    // MKCooling IR Temperature Ambient Decimal Characteristic Declaration
-    [MKC_IDX_IR_TEMPA_DEC_CHAR] =
-    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
+    // // MKCooling IR Temperature Ambient Decimal Characteristic Declaration
+    // [MKC_IDX_IR_TEMPA_DEC_CHAR] =
+    // {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
 
-    // MKCooling IR Temperature Ambient Decimal Characteristic Value
-    [MKC_IDX_IR_TEMPA_DEC_VAL] =
-    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_ir_tempa_dec_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      sizeof(uint16_t), sizeof(ir_temperature_ambient_dec_val), (uint16_t *)ir_temperature_ambient_dec_val}},
+    // // MKCooling IR Temperature Ambient Decimal Characteristic Value
+    // [MKC_IDX_IR_TEMPA_DEC_VAL] =
+    // {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_ir_tempa_dec_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   sizeof(uint16_t), sizeof(ir_temperature_ambient_dec_val), (uint16_t *)ir_temperature_ambient_dec_val}},
 
-    // MKCooling FanSpeed RPM Characteristic Declaration
-    [MKC_IDX_FAN_SPEED_RPM_CHAR] =
-    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
+    // // MKCooling FanSpeed RPM Characteristic Declaration
+    // [MKC_IDX_FAN_SPEED_RPM_CHAR] =
+    // {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
 
-    // MKCooling FanSpeed RPM Characteristic Value
-    [MKC_IDX_FAN_SPEED_RPM_VAL] =
-    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_fan_speed_rpm_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      sizeof(uint16_t), sizeof(fan_speed_rpm_val), (uint16_t *)fan_speed_rpm_val}},
+    // // MKCooling FanSpeed RPM Characteristic Value
+    // [MKC_IDX_FAN_SPEED_RPM_VAL] =
+    // {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_fan_speed_rpm_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   sizeof(uint16_t), sizeof(fan_speed_rpm_val), (uint16_t *)fan_speed_rpm_val}},
 
-    // MKCooling FanSpeed Percentage Characteristic Declaration
-    [MKC_IDX_FAN_SPEED_PERCENTAGE_CHAR] =
-    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
+    // // MKCooling FanSpeed Percentage Characteristic Declaration
+    // [MKC_IDX_FAN_SPEED_PERCENTAGE_CHAR] =
+    // {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
 
-    // MKCooling FanSpeed Percentage Characteristic Value
-    [MKC_IDX_FAN_SPEED_PERCENTAGE_VAL] =
-    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_fan_speed_percentage_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
-      sizeof(uint16_t), sizeof(fan_speed_percentage_val), (uint16_t *)fan_speed_percentage_val}},
+    // // MKCooling FanSpeed Percentage Characteristic Value
+    // [MKC_IDX_FAN_SPEED_PERCENTAGE_VAL] =
+    // {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_fan_speed_percentage_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
+    //   sizeof(uint16_t), sizeof(fan_speed_percentage_val), (uint16_t *)fan_speed_percentage_val}},
 
-    // MKCooling Switch Characteristic Declaration
-    [MKC_IDX_SWITCHA_CHAR] =
-    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
+    // // MKCooling Switch Characteristic Declaration
+    // [MKC_IDX_SWITCHA_CHAR] =
+    // {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
 
-    // MKCooling Switch Characteristic Value
-    [MKC_IDX_SWITCHA_VAL] =
-    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_switch_a_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
-      sizeof(uint16_t), sizeof(switch_a_val), (uint16_t *)switch_a_val}},
+    // // MKCooling Switch Characteristic Value
+    // [MKC_IDX_SWITCHA_VAL] =
+    // {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_switch_a_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
+    //   sizeof(uint16_t), sizeof(switch_a_val), (uint16_t *)switch_a_val}},
 
-    // MKCooling Auth Characteristic Declaration
-    [MKC_IDX_AUTH_CHAR] =
-    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
+    // // MKCooling Auth Characteristic Declaration
+    // [MKC_IDX_AUTH_CHAR] =
+    // {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
 
-    // MKCooling Auth Characteristic Value
-    [MKC_IDX_AUTH_VAL] =
-    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_auth_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
-      sizeof(uint16_t), sizeof(auth_val), (uint16_t *)auth_val}},
+    // // MKCooling Auth Characteristic Value
+    // [MKC_IDX_AUTH_VAL] =
+    // {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_auth_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
+    //   sizeof(uint16_t), sizeof(auth_val), (uint16_t *)auth_val}},
 
-    // MKCooling Delay Characteristic Declaration
-    [MKC_IDX_DELAY_CHAR] =
-    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
-      CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
+    // // MKCooling Delay Characteristic Declaration
+    // [MKC_IDX_DELAY_CHAR] =
+    // {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
+    //   CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
 
-    // MKCooling Delay Characteristic Value
-    [MKC_IDX_DELAY_VAL] =
-    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_delay_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
-      sizeof(uint16_t), sizeof(delay_val), (uint16_t *)delay_val}},
+    // // MKCooling Delay Characteristic Value
+    // [MKC_IDX_DELAY_VAL] =
+    // {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_delay_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
+    //   sizeof(uint16_t), sizeof(delay_val), (uint16_t *)delay_val}},
 
         // MKCooling Delay Characteristic Declaration
     [MKC_IDX_WRITEIN_CHAR] =
@@ -382,143 +385,143 @@ static char *esp_auth_req_to_str(esp_ble_auth_req_t auth_req)
    return auth_str;
 }
 
-uint16_t get_attrubutes(enum mkc_idx_attributes attr_idx){
-    uint16_t value = 0;
-    switch (attr_idx)
-    {   
-    case MKC_IDX_TEMP_INT_VAL:{
-        value = temperature_int_val[0];
-        break;
-    }
-    case MKC_IDX_TEMP_DEC_VAL:{
-        value = temperature_dec_val[0];
-        break;
-    }
-    case MKC_IDX_IR_TEMPO_INT_VAL:{
-        value = ir_temperature_object_int_val[0];
-        break;
-    }
-    case MKC_IDX_IR_TEMPO_DEC_VAL:{
-        value = ir_temperature_object_dec_val[0];
-        break;
-    }
-    case MKC_IDX_IR_TEMPA_INT_VAL:{
-        value = ir_temperature_ambient_int_val[0];
-        break;
-    }
-    case MKC_IDX_IR_TEMPA_DEC_VAL:{
-        value = ir_temperature_ambient_dec_val[0];
-        break;
-    }
-    case MKC_IDX_FAN_SPEED_RPM_VAL:{
-        value = fan_speed_rpm_val[0];
-        break;
-    }
-    case MKC_IDX_FAN_SPEED_PERCENTAGE_VAL:{
-        value = fan_speed_percentage_val[0];
-        break;
-    }
-    case MKC_IDX_SWITCHA_VAL:{
-        value = switch_a_val[0];
-        break;
-    }
-    case MKC_IDX_AUTH_VAL:{
-        value = auth_val[0];
-        break;
-    }
-    case MKC_IDX_DELAY_VAL:{
-        value = delay_val[0];
-        break;
-    }
-    default:
-        break;
-    }
-    return value;
-}
+// uint16_t mkc_get_attrubutes(enum mkc_idx_attributes attr_idx){
+//     uint16_t value = 0;
+//     switch (attr_idx)
+//     {   
+//     case MKC_IDX_TEMP_INT_VAL:{
+//         value = temperature_int_val[0];
+//         break;
+//     }
+//     case MKC_IDX_TEMP_DEC_VAL:{
+//         value = temperature_dec_val[0];
+//         break;
+//     }
+//     case MKC_IDX_IR_TEMPO_INT_VAL:{
+//         value = ir_temperature_object_int_val[0];
+//         break;
+//     }
+//     case MKC_IDX_IR_TEMPO_DEC_VAL:{
+//         value = ir_temperature_object_dec_val[0];
+//         break;
+//     }
+//     case MKC_IDX_IR_TEMPA_INT_VAL:{
+//         value = ir_temperature_ambient_int_val[0];
+//         break;
+//     }
+//     case MKC_IDX_IR_TEMPA_DEC_VAL:{
+//         value = ir_temperature_ambient_dec_val[0];
+//         break;
+//     }
+//     case MKC_IDX_FAN_SPEED_RPM_VAL:{
+//         value = fan_speed_rpm_val[0];
+//         break;
+//     }
+//     case MKC_IDX_FAN_SPEED_PERCENTAGE_VAL:{
+//         value = fan_speed_percentage_val[0];
+//         break;
+//     }
+//     case MKC_IDX_SWITCHA_VAL:{
+//         value = switch_a_val[0];
+//         break;
+//     }
+//     case MKC_IDX_AUTH_VAL:{
+//         value = auth_val[0];
+//         break;
+//     }
+//     case MKC_IDX_DELAY_VAL:{
+//         value = delay_val[0];
+//         break;
+//     }
+//     default:
+//         break;
+//     }
+//     return value;
+// }
 
-uint16_t get_attrubutes_with_handle(uint16_t handle){
-    ESP_LOGI(GATTS_TABLE_TAG, "debug write handle : %u\n", handle);
-    return get_attrubutes(handle - 40);
-}
+// uint16_t get_attrubutes_with_handle(uint16_t handle){
+//     ESP_LOGI(GATTS_TABLE_TAG, "debug write handle : %u\n", handle);
+//     return mkc_get_attrubutes(handle - 40);
+// }
 
-bool need_update_data(uint16_t source, uint16_t *destination){
-    if (source != destination[0] && switcher == false)
-    {
-        destination[0] = source;
-        return true;
-    }
-    return false;
-}
+// bool need_update_data(uint16_t source, uint16_t *destination){
+//     if (source != destination[0] && switcher == false)
+//     {
+//         destination[0] = source;
+//         return true;
+//     }
+//     return false;
+// }
 
-void set_attributes(enum mkc_idx_attributes attr_idx, uint16_t value){
-    bool is_need_update = false;
-    // auth
-    // if (attr_idx == MKC_IDX_AUTH_VAL){
-    //     auth_val[0] = value;
-    //     is_need_update = true;
-    // }
-    // if (auth_val[0] != 0x00){
-    //     ble_module_reset();
-    //     return;
-    // }else{
-    //     ESP_LOGE(GATTS_TABLE_TAG, "Auth success");
-    // }
-    // data
-    switch (attr_idx)
-    {   
-    case MKC_IDX_TEMP_INT_VAL:{
-        is_need_update = need_update_data(value, temperature_int_val);
-        break;
-    }
-    case MKC_IDX_TEMP_DEC_VAL:{
-        is_need_update = need_update_data(value, temperature_dec_val);
-        break;
-    }
-    case MKC_IDX_IR_TEMPO_INT_VAL:{
-        ir_temperature_object_int_val[0] = value;
-        break;
-    }
-    case MKC_IDX_IR_TEMPO_DEC_VAL:{
-        ir_temperature_object_dec_val[0] = value;
-        break;
-    }
-    case MKC_IDX_IR_TEMPA_INT_VAL:{
-        ir_temperature_ambient_int_val[0] = value;
-        break;
-    }
-    case MKC_IDX_IR_TEMPA_DEC_VAL:{
-        ir_temperature_ambient_dec_val[0] = value;
-        break;
-    }
-    case MKC_IDX_FAN_SPEED_RPM_VAL:{
-        fan_speed_rpm_val[0] = value;
-        break;
-    }
-    case MKC_IDX_FAN_SPEED_PERCENTAGE_VAL:{
-        is_need_update = need_update_data(value, fan_speed_percentage_val);
-        break;
-    }
-    case MKC_IDX_SWITCHA_VAL:{
-        is_need_update = need_update_data(value, switch_a_val);
-        break;
-    }
-    case MKC_IDX_DELAY_VAL:{
-        delay_val[0] = value;
-        break;
-    }
-    default:
-        break;
-    }
-    if (is_need_update == true){
-        callback_t(attr_idx, value);
-    }
+// void mkc_set_attributes(enum mkc_idx_attributes attr_idx, uint16_t value){
+//     bool is_need_update = false;
+//     // auth
+//     // if (attr_idx == MKC_IDX_AUTH_VAL){
+//     //     auth_val[0] = value;
+//     //     is_need_update = true;
+//     // }
+//     // if (auth_val[0] != 0x00){
+//     //     ble_module_reset();
+//     //     return;
+//     // }else{
+//     //     ESP_LOGE(GATTS_TABLE_TAG, "Auth success");
+//     // }
+//     // data
+//     switch (attr_idx)
+//     {   
+//     case MKC_IDX_TEMP_INT_VAL:{
+//         is_need_update = need_update_data(value, temperature_int_val);
+//         break;
+//     }
+//     case MKC_IDX_TEMP_DEC_VAL:{
+//         is_need_update = need_update_data(value, temperature_dec_val);
+//         break;
+//     }
+//     case MKC_IDX_IR_TEMPO_INT_VAL:{
+//         ir_temperature_object_int_val[0] = value;
+//         break;
+//     }
+//     case MKC_IDX_IR_TEMPO_DEC_VAL:{
+//         ir_temperature_object_dec_val[0] = value;
+//         break;
+//     }
+//     case MKC_IDX_IR_TEMPA_INT_VAL:{
+//         ir_temperature_ambient_int_val[0] = value;
+//         break;
+//     }
+//     case MKC_IDX_IR_TEMPA_DEC_VAL:{
+//         ir_temperature_ambient_dec_val[0] = value;
+//         break;
+//     }
+//     case MKC_IDX_FAN_SPEED_RPM_VAL:{
+//         fan_speed_rpm_val[0] = value;
+//         break;
+//     }
+//     case MKC_IDX_FAN_SPEED_PERCENTAGE_VAL:{
+//         is_need_update = need_update_data(value, fan_speed_percentage_val);
+//         break;
+//     }
+//     case MKC_IDX_SWITCHA_VAL:{
+//         is_need_update = need_update_data(value, switch_a_val);
+//         break;
+//     }
+//     case MKC_IDX_DELAY_VAL:{
+//         delay_val[0] = value;
+//         break;
+//     }
+//     default:
+//         break;
+//     }
+//     if (is_need_update == true){
+//         // callback_t(attr_idx, value);
+//     }
     
-}
+// }
 
-void set_attributes_with_handle(uint16_t handle, uint16_t value){
-    ESP_LOGI(GATTS_TABLE_TAG, "debug set handle : %u\n", handle);
-    set_attributes(handle - 40, value);
-}
+// void set_attributes_with_handle(uint16_t handle, uint16_t value){
+//     ESP_LOGI(GATTS_TABLE_TAG, "debug set handle : %u\n", handle);
+//     mkc_set_attributes(handle - 40, value);
+// }
 
 static void show_bonded_devices(void)
 {
@@ -715,20 +718,57 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event,
                                       MKC_IDX_NB, MKCOOLING_SVC_INST_ID);
             break;
         case ESP_GATTS_READ_EVT:{
+            esp_gatt_status_t gatt_status = ESP_GATT_OK;
             esp_gatt_rsp_t rsp;
             memset(&rsp, 0, sizeof(esp_gatt_rsp_t));
       		rsp.attr_value.handle = param->read.handle;
-       		rsp.attr_value.len = sizeof(fan_speed_rpm_val);
-       		rsp.attr_value.value[0] = get_attrubutes_with_handle(param->read.handle);
-       		esp_ble_gatts_send_response(gatts_if, param->read.conn_id, param->read.trans_id, ESP_GATT_OK, &rsp);
+       		rsp.attr_value.len = sizeof(write_in_val);
+       		// rsp.attr_value.value[0] = get_attrubutes_with_handle(param->read.handle);
+            uint8_t *response_datas = calloc(16, sizeof(uint8_t));
+            esp_err_t ret = response_callback_t(MKC_BLE_RESPONSE_TYP_INFO, write_in_val);
+            if (ret == ESP_OK)
+            {
+                rsp.attr_value.len = sizeof(uint8_t) * 16;
+                // rsp.attr_value.value = write_in_val;
+                memcpy(&(rsp.attr_value.value), write_in_val, sizeof(uint8_t) * 16);
+                gatt_status = ESP_GATT_OK;
+            }else{
+                gatt_status = ESP_GATT_UNKNOWN_ERROR;
+            }
+       		esp_ble_gatts_send_response(gatts_if, param->read.conn_id, param->read.trans_id, gatt_status, &rsp);
+            free(response_datas);
             break;
         }
         case ESP_GATTS_WRITE_EVT:
             ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_WRITE_EVT, write value:");
             esp_log_buffer_hex(GATTS_TABLE_TAG, param->write.value, param->write.len);
-            set_attributes_with_handle(param->write.handle, *(param->write.value));
+            printf("handle%d", param->write.handle);
+            esp_log_buffer_hex(GATTS_TABLE_TAG, write_in_val, sizeof(uint8_t) * 16);
             esp_gatt_rsp_t rsp;
-       		esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, &rsp);
+            esp_gatt_status_t gatt_status = ESP_GATT_OK;
+            uint8_t *response_datas = calloc(16, sizeof(uint8_t));
+            if (param->write.handle - 40 == MKC_IDX_WRITEIN_VAL)
+            {
+                esp_err_t ret = receive_callback_t(MKC_IDX_WRITEIN_VAL, param->write.len, param->write.value);
+                if (ret == ESP_OK)
+                {
+                    gatt_status = ESP_GATT_OK;
+                    ret = response_callback_t(MKC_BLE_RESPONSE_TYP_STATUS, response_datas);
+                    if (ret == ESP_OK)
+                    {
+                        rsp.attr_value.len = sizeof(write_in_val);
+                        // rsp.attr_value.value = &response_datas;
+                        memcpy(&(rsp.attr_value.value), response_datas, sizeof(uint8_t) * 16);
+                        gatt_status = ESP_GATT_OK;
+                    }else{
+                        gatt_status = ESP_GATT_UNKNOWN_ERROR;
+                    }
+                }else{  
+                    gatt_status = ESP_GATT_UNKNOWN_ERROR;
+                }
+            }
+       		esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, gatt_status, &rsp);
+            free(response_datas);
             break;
         case ESP_GATTS_EXEC_WRITE_EVT:
             ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_EXEC_WRITE_EVT");
@@ -825,11 +865,15 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
     } while (0);
 }
 
-void ble_module_init(receive_datas_callback_t update_callback)
+void mkc_ble_module_init(receive_datas_callback_t receive_callback, compose_response_callback_t response_callback)
 {
-    if (update_callback != NULL)
+    if (receive_callback != NULL)
     {
-        callback_t = update_callback;
+        receive_callback_t = receive_callback;
+    }
+    if (response_callback != NULL)
+    {
+        response_callback_t = response_callback;
     }
 
     esp_err_t ret;
@@ -838,10 +882,11 @@ void ble_module_init(receive_datas_callback_t update_callback)
     ESP_LOGE(GATTS_TABLE_TAG, "========== mac address =========");
     esp_read_mac(local_mac_address, ESP_MAC_BT);
     // load MAC address to manufacturer_data
-    for (size_t i = 0; i < 6; i++)
-    {
-        manufacturer_data[i + 3] = local_mac_address[i];
-    }
+    memcpy(&manufacturer_data[4], local_mac_address, sizeof(local_mac_address));
+    // for (size_t i = 0; i < 6; i++)
+    // {
+    //     manufacturer_data[i + 3] = local_mac_address[i];
+    // }
 
     // Initialize NVS.
     ret = nvs_flash_init();
@@ -928,25 +973,25 @@ void ble_module_init(receive_datas_callback_t update_callback)
     show_bonded_devices();
 }
 
-void ble_module_reset(){
+void mkc_ble_module_reset(){
     user_need_add_device = true;
-    callback_t(MKC_IDX_AUTH_VAL, 0x00);
+    // callback_t(MKC_IDX_AUTH_VAL, 0x00);
     remove_all_bonded_devices();
     ble_gap_start_advertising_custom();
 }
 
-void ble_module_deinit(){
+void mkc_ble_module_deinit(){
     esp_bluedroid_disable();
     esp_bluedroid_deinit();
     esp_bt_controller_disable();
     esp_bt_controller_deinit();
 }
 
-enum mkc_ble_state ble_get_state(){
+enum mkc_ble_state mkc_ble_get_state(){
     return state;
 }
 
-void set_sleep(bool need_sleep){
+void mkc_set_sleep(bool need_sleep){
     if (need_sleep == true){
         esp_bt_sleep_enable();
     }else{
@@ -954,16 +999,16 @@ void set_sleep(bool need_sleep){
     }
 }
 
-void switch_to_reset_mode(bool is_on){
+void mkc_switch_to_reset_mode(bool is_on){
     switcher = is_on;
 }
 
 void auto_kick_handle(){
-    if (auth_val[0] != 0x33){
-        ble_module_reset();
-    }else{
-        ESP_LOGE(GATTS_TABLE_TAG, "Auth success");
-    }
+    // if (auth_val[0] != 0x33){
+    //     mkc_ble_module_reset();
+    // }else{
+    //     ESP_LOGE(GATTS_TABLE_TAG, "Auth success");
+    // }
 }
 
 void auto_kick_on(){

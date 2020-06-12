@@ -1,5 +1,5 @@
 #include "include/mkc_protocol_adaptor.h"
-#include "esp_system.h"
+#include "esp_system.h" 
 #include <string.h>
 
 #define MKC_PROTOCOL_ADAPTOR_IDX_DATA 3
@@ -14,7 +14,7 @@
 #define MKC_PROTOCOL_ADAPTOR_LEN_FETCHDATAS 8
 #define MKC_PROTOCOL_ADAPTOR_LEN_TOKEN 4
 
-mkc_protocol_model_t mkc_protocol_data_to_model(uint8_t *data){
+mkc_protocol_model_t mkc_protocol_data_to_model(void *data){
     uint8_t *rawData = data;
     // new model 
     mkc_protocol_model_t model;
@@ -43,27 +43,31 @@ mkc_protocol_model_t mkc_protocol_data_to_model(uint8_t *data){
             break;
     }
     // token
-    uint8_t token[4];
-
-    for (size_t i = 0; i < 16; i++)
-    {
-        printf("%02x", data[i]);
-        if (i == 15)
-        {
-            printf("\n");
-        }else{
-            printf(":");
-        }
-    }
+    uint8_t token[4] = {0x00, 0x00, 0x00, 0x00};
+    memcpy(token, &rawData[currentIdx], MKC_PROTOCOL_ADAPTOR_LEN_TOKEN * sizeof(uint8_t));
+    model.token = token;
+    currentIdx+=4;
+    // crc
+    model.crc = rawData[currentIdx];
+    // for (size_t i = 0; i < 16; i++)
+    // {
+    //     printf("%02x", data[i]);
+    //     if (i == 15)
+    //     {
+    //         printf("\n");
+    //     }else{
+    //         printf(":");
+    //     }
+    // }
     return model;
 }
 
-void mkc_protocol_model_to_data(uint8_t *data, mkc_protocol_model_t model){
+void mkc_protocol_model_to_data(void *data, mkc_protocol_model_t model){
     // incase of overflow
     model.len = (model.len > 8 ? 8 : model.len);
     int currentIdx = 0;
     // new rawData
-    uint8_t *rawData = calloc(sizeof(uint8_t), 16);
+    uint8_t *rawData = calloc(16, sizeof(uint8_t));
     // hdr
     rawData[0] = model.hdr;
     currentIdx++;
@@ -72,7 +76,8 @@ void mkc_protocol_model_to_data(uint8_t *data, mkc_protocol_model_t model){
     currentIdx++;
     // switch typ
     switch (model.typ){
-        case 2:{
+        case 2:
+        case 0xfe:{
             rawData[2] = MKC_PROTOCOL_ADAPTOR_LEN_FETCHDATAS;
             currentIdx++;
             rawData[MKC_PROTOCOL_ADAPTOR_IDX_TEMP_IR_O_INT] = model.temp_ir_o_data.temp_int;

@@ -6,27 +6,28 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
-#include "include/ble_module.h"
+#include "include/mkc_ble_module.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_spi_flash.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
-#include "include/timer_tools_module.h"
-#include "include/hall_counter_module.h"
-#include "include/pwm_module.h"
-#include "include/temp_ir_sensor.h"
-#include "include/persist_module.h"
+#include "include/mkc_timer_tools_module.h"
+#include "include/mkc_hall_counter_module.h"
+#include "include/mkc_pwm_module.h"
+#include "include/mkc_temp_ir_sensor.h"
+#include "include/mkc_persist_module.h"
 #include "include/mkc_protocol_adaptor.h"
+#include "esp32/rom/crc.h"
 
 #define MAIN_TAG "MAIN"
 
-// #define HALL_COUNTER_MODULE
-// #define PWM_MODULE
-// #define MLX90614_IRTEMP_MODULE
-// #define BLE_MODULE
-// #define PERSIST_MODULE
+#define MKC_HALL_COUNTER_MODULE
+#define MKC_PWM_MODULE
+#define MLX90614_IRTEMP_MODULE
+#define MKC_BLE_MODULE
+#define MKC_PERSIST_MODULE
 
 #define LED_R_IO 5
 #define HALL_GPIO 13
@@ -37,18 +38,21 @@
 #define MLX90614_VCC_GPIO 19
 #define BLE_RESET_GPIO 21
 
-#define FAN_DUTY_DEFAULT 0
+#define MKC_FAN_DUTY_DEFAULT 0
 
 // IR_Temperature
 uint8_t switch_is_on;
-uint8_t a_temp_int;
-uint8_t a_temp_dec;
-uint8_t o_temp_int;
-uint8_t o_temp_dec;
+// uint8_t a_temp_int;
+// uint8_t a_temp_dec;
+// uint8_t o_temp_int;
+// uint8_t o_temp_dec;
 
 // PWM
-int fan_rpm;
-uint8_t fan_duty;
+// int fan_rpm;
+// uint8_t fan_duty;
+
+// data model
+mkc_protocol_model_t data_model;
 
 // BLE
 enum mkc_ble_state ble_state;
@@ -69,11 +73,11 @@ void action() {
     // }
     // light_on = !light_on;
 
-    #ifdef HALL_COUNTER_MODULE
-        fan_rpm = hallGetCounter() * 12;
-        fan_duty = fan_get_duty();
-        printf("rpm:%d duty:%d\r\n", fan_rpm, fan_duty);
-        hallClearCounter();
+    #ifdef MKC_HALL_COUNTER_MODULE
+        data_model.fan_rpm = mkc_hallGetCounter() * 12;
+        data_model.fan_duty = mkc_fan_get_duty();
+        printf("rpm:%d duty:%d\r\n", data_model.fan_rpm, data_model.fan_duty);
+        mkc_hallClearCounter();
     #endif 
 
     #ifdef MLX90614_IRTEMP_MODULE
@@ -86,27 +90,30 @@ void action() {
             //     gpio_set_level(MLX90614_VCC_GPIO, 1);
             // }
         }
+    #ifdef MKC_BLE_MODULE
         if (switch_is_on != 0){
-            float a_temp = 0;
-            float o_temp = 0;
-            a_temp = getAmbientTemp();
-            o_temp = getObjectTemp();
-            a_temp_int = (uint16_t)a_temp;
-            a_temp_dec = (uint16_t)((a_temp - (float)a_temp_int) * 1000);
-            o_temp_int = (uint16_t)o_temp;
-            o_temp_dec = (uint16_t)((o_temp - (float)o_temp_int) * 1000);
+            // float a_temp = 0;
+            // float o_temp = 0;
+            // a_temp = mkc_getAmbientTemp();
+            // o_temp = mkc_getObjectTemp();
+            // a_temp_int = (uint16_t)a_temp;
+            // a_temp_dec = (uint16_t)((a_temp - (float)a_temp_int) * 1000);
+            // o_temp_int = (uint16_t)o_temp;
+            // o_temp_dec = (uint16_t)((o_temp - (float)o_temp_int) * 1000);
+            data_model.temp_ir_o_data = mkc_get_object_temp_struct();
+            data_model.temp_ir_a_data = mkc_get_ambient_temp_struct();
             if (resetCounter == 0)
             {   
-                if (o_temp_int > 45)
+                if (data_model.temp_ir_o_data.temp_int > 45)
                 {
                     resetCounter = 5;
-                    switch_to_reset_mode(true);
+                    mkc_switch_to_reset_mode(true);
                     ESP_LOGI(MAIN_TAG, "Temperature satisfied");
-                    ble_module_reset();
+                    mkc_ble_module_reset();
                 }
                 else
                 {
-                    switch_to_reset_mode(false);
+                    mkc_switch_to_reset_mode(false);
                 }
             }
             if (resetCounter > 0)
@@ -114,41 +121,42 @@ void action() {
                 resetCounter--;
                 ESP_LOGI(MAIN_TAG, "Counter is running");
             }
-            ESP_LOGI(MAIN_TAG, "IR Temperature int data :%d.%d %d.%d \n", a_temp_int, a_temp_dec, o_temp_int, o_temp_dec);
+            ESP_LOGI(MAIN_TAG, "IR Temperature int data :%d.%d %d.%d \n", data_model.temp_ir_a_data.temp_int, data_model.temp_ir_a_data.temp_dec, data_model.temp_ir_o_data.temp_int, data_model.temp_ir_o_data.temp_dec);
         }
     #endif
+    #endif
 
-    #ifdef BLE_MODULE
-        set_attributes(MKC_IDX_IR_TEMPA_INT_VAL, a_temp_int);
-        set_attributes(MKC_IDX_IR_TEMPA_DEC_VAL, a_temp_dec);
-        set_attributes(MKC_IDX_IR_TEMPO_INT_VAL, o_temp_int);
-        set_attributes(MKC_IDX_IR_TEMPO_DEC_VAL, o_temp_dec);
-        set_attributes(MKC_IDX_FAN_SPEED_RPM_VAL, (uint16_t)fan_rpm);
+    #ifdef MKC_BLE_MODULE
+        // mkc_set_attributes(MKC_IDX_IR_TEMPA_INT_VAL, a_temp_int);
+        // mkc_set_attributes(MKC_IDX_IR_TEMPA_DEC_VAL, a_temp_dec);
+        // mkc_set_attributes(MKC_IDX_IR_TEMPO_INT_VAL, o_temp_int);
+        // mkc_set_attributes(MKC_IDX_IR_TEMPO_DEC_VAL, o_temp_dec);
+        // mkc_set_attributes(MKC_IDX_FAN_SPEED_RPM_VAL, (uint16_t)fan_rpm);
         if (resetCounter == 4)
         {
-            fan_set_duty(100);
+            mkc_fan_set_duty(100);
         }
         if (resetCounter == 3)
         {
-            fan_set_duty(0);
+            mkc_fan_set_duty(0);
         }
         if (resetCounter == 2)
         {
-            fan_set_duty(100);
+            mkc_fan_set_duty(100);
         }
         if (resetCounter == 1)
         {
-            fan_set_duty(0);
+            mkc_fan_set_duty(0);
         }
-        uint16_t freq = get_attrubutes(MKC_IDX_DELAY_VAL);
-        if ((int)freq != 0){
-            count = freq * 30;
-            set_attributes(MKC_IDX_DELAY_VAL, (uint16_t)0);
-        }
+        // uint16_t freq = mkc_get_attrubutes(MKC_IDX_DELAY_VAL);
+        // if ((int)freq != 0){
+        //     count = freq * 30;
+        //     mkc_set_attributes(MKC_IDX_DELAY_VAL, (uint16_t)0);
+        // }
         if (count > 1){
             count--;
         }else if(count == 1){
-            set_attributes(MKC_IDX_FAN_SPEED_PERCENTAGE_VAL, (uint16_t)0);
+            // mkc_set_attributes(MKC_IDX_FAN_SPEED_PERCENTAGE_VAL, (uint16_t)0);
             count = 0;
         }
         // int is_press = gpio_get_level(BLE_RESET_GPIO);
@@ -165,49 +173,79 @@ void action() {
     #endif
 }
 
-void ble_data_update(enum mkc_idx_attributes attr_idx, uint16_t value){
+esp_err_t ble_receive_datas(enum mkc_idx_attributes attr_idx, uint16_t len, uint8_t *value){
+    mkc_protocol_model_t model = mkc_protocol_data_to_model(value);
+    mkc_persist_set_data(model);
     switch (attr_idx)
     {
-    case MKC_IDX_TEMP_INT_VAL:{
-        ESP_LOGI(MAIN_TAG, "PC Temperature int data : %d\n", value);
-        break;
-    }
-    case MKC_IDX_TEMP_DEC_VAL:{
-        ESP_LOGI(MAIN_TAG, "PC Temperature decimal data : %d\n", value);
-        break;
-    }
-    case MKC_IDX_FAN_SPEED_PERCENTAGE_VAL:{
-        ESP_LOGI(MAIN_TAG, "PC Temperature fan percentage data : %d\n", value);
-        if (value == 0){
-            value = 1;
+    case MKC_IDX_WRITEIN_VAL:{
+        // decode 
+        
+        switch (model.typ)
+        {
+        case 03:{
+            float fan_duty = model.fan_duty / 100.0;
+            mkc_fan_set_duty(fan_duty);
+            break;
         }
-        fan_duty = value;
-        fan_set_duty((float)value);
-        #ifdef PERSIST_MODULE
-            persist_set_data(PERSIST_MODULE_DUTY, fan_duty);
-        #endif
-        break;
-    }
-    case MKC_IDX_SWITCHA_VAL:{
-        if (value == 0){    
-            gpio_set_level(MLX90614_VCC_GPIO, 0);
-            switch_is_on = 0;
-        }else{
-            gpio_set_level(MLX90614_VCC_GPIO, 1);
-            switch_is_on = 1;
+        case 04:{
+            uint16_t delay = model.delay;
+            break;
         }
-        #ifdef PERSIST_MODULE
-            persist_set_data(PERSIST_MODULE_MLX90614_SWITCH, switch_is_on);
-        #endif
-        break;
-    }
-    case MKC_IDX_AUTH_VAL:{
-        #ifdef PERSIST_MODULE
-            persist_set_data(PERSIST_MODULE_AUTH, value);
-        #endif
+        default:
+            break;
+        }
+        // print debug
+        // for (size_t i = 0; i < 16; i++)
+        // {
+        //     printf("%02x", value[i]);
+        //     if (i == 15)
+        //     {
+        //         printf("\n");
+        //     }else{
+        //         printf(":");
+        //     }
+        // }
         break;
     }
     default:
+        break;
+    }
+    return ESP_FAIL;
+}
+
+esp_err_t ble_compose_response(enum mkc_ble_response_typ rsp_typ, uint8_t *value){
+    switch (rsp_typ)
+    {
+    case MKC_BLE_RESPONSE_TYP_INFO:{
+        mkc_protocol_model_t model;
+        model.hdr = 0x10;
+        model.typ = 0xfe;
+        uint8_t token[4] = {0x11, 0x22, 0x33, 0x44};
+        model.token = &token;
+        model.crc = crc8_be(0, model.token, 4);
+        // to data
+        mkc_protocol_model_to_data(value, model);
+        return ESP_OK;
+        break;
+    }
+    case MKC_BLE_RESPONSE_TYP_STATUS:{
+        mkc_protocol_model_t model;
+        model.hdr = 0x10;
+        model.typ = 0xff;
+        model.len = 1;
+        uint8_t data[1] = {0x00};
+        model.data = &data;
+        uint8_t token[4] = {0x11, 0x22, 0x33, 0x44};
+        model.token = &token;
+        model.crc = crc8_be(0, model.token, 4);
+        // to data
+        mkc_protocol_model_to_data(value, model);
+        return ESP_OK;
+        break;
+    }
+    default:
+        return ESP_FAIL;
         break;
     }
 }
@@ -215,49 +253,42 @@ void ble_data_update(enum mkc_idx_attributes attr_idx, uint16_t value){
 void app_main()
 {   
     uint8_t ble_auth = 0;
+    // init
+    memset(&data_model, 0, sizeof(data_model));
 
-    #ifdef PERSIST_MODULE
-        persist_module_init();
-        char *value_str = NULL;
-        value_str = persist_get_data(PERSIST_MODULE_DUTY, value_str);
-        fan_duty = String2Int(value_str);
-        value_str = NULL;
-        value_str = persist_get_data(PERSIST_MODULE_MLX90614_SWITCH, value_str);
-        switch_is_on = String2Int(value_str);
-        value_str = NULL;
-        value_str = persist_get_data(PERSIST_MODULE_AUTH, value_str);
-        ble_auth = String2Int(value_str);
+    #ifdef MKC_PERSIST_MODULE
+        mkc_persist_module_init();
+        mkc_protocol_model_t model = mkc_persist_get_data();
+        data_model.fan_duty = model.fan_duty;
     #endif
-    
-    printf("Hello world!\n");
 
-    uint8_t fakeData[16] = {0x10, 0x02, 0x08, 0x1e, 0x02, 0x19, 0x05, 0x56, 0x08, 0x00, 0x64, 0x1f, 0x96, 0x0c, 0x24, 0xd2};
+    // uint8_t fakeData[16] = {0x10, 0x02, 0x08, 0x1e, 0x02, 0x19, 0x05, 0x56, 0x08, 0x00, 0x64, 0x1f, 0x96, 0x0c, 0x24, 0xd2};
 
-    mkc_protocol_model_t model;
-    model.hdr = 0x10;
-    model.typ = 0x02;
-    model.len = 8;
-    // uint8_t data[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-    // model.data = &data;
-    mkc_temp_ir_data_t temp_o;
-    temp_o.temp_int = 30;
-    temp_o.temp_dec = 2;
-    mkc_temp_ir_data_t temp_a;
-    temp_a.temp_int = 25;
-    temp_a.temp_dec = 5;
-    model.temp_ir_a_data = temp_a;
-    model.temp_ir_o_data = temp_o;
-    model.fan_duty = 86;
-    model.fan_rpm = 2048;
-    model.delay = 0x64;
-    uint8_t token[4] = {0xaa, 0xbb, 0xcc, 0xdd};
-    model.token = &token;
-    model.crc = 0x99;
-    uint8_t *datas;
-    mkc_protocol_model_to_data(&datas, model);
+    // // mkc_protocol_model_t model;
+    // model.hdr = 0x10;
+    // model.typ = 0x02;
+    // model.len = 8;
+    // // uint8_t data[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+    // // model.data = &data;
+    // mkc_temp_ir_data_t temp_o;
+    // temp_o.temp_int = 30;
+    // temp_o.temp_dec = 2;
+    // mkc_temp_ir_data_t temp_a;
+    // temp_a.temp_int = 25;
+    // temp_a.temp_dec = 5;
+    // model.temp_ir_a_data = temp_a;
+    // model.temp_ir_o_data = temp_o;
+    // model.fan_duty = 86;
+    // model.fan_rpm = 2048;
+    // model.delay = 0x64;
+    // uint8_t token[4] = {0xaa, 0xbb, 0xcc, 0xdd};
+    // model.token = &token;
+    // model.crc = 0x99;
+    // uint8_t *datas;
+    // mkc_protocol_model_to_data(&datas, model);
 
-    model = mkc_protocol_data_to_model(&datas);
-    printf("typ: %02u\n", model.typ);
+    // model = mkc_protocol_data_to_model(&datas);
+    // printf("typ: %02u\n", model.typ);
 
     /* Print chip information */
     esp_chip_info_t chip_info;
@@ -282,18 +313,19 @@ void app_main()
     // gpio_set_direction(LED_R_IO, GPIO_MODE_OUTPUT);
     // hall
     
-    #ifdef HALL_COUNTER_MODULE
-        hallInit(HALL_GPIO);
-        hallStartCounter();
+    #ifdef MKC_HALL_COUNTER_MODULE
+        mkc_hallInit(HALL_GPIO);
+        mkc_hallStartCounter();
     #endif
 
-    #ifdef PWM_MODULE
-        pwm_init(PWM_GPIO);
-        fan_set_start();
-        if (fan_duty == 0){
-            fan_duty = FAN_DUTY_DEFAULT;
+    #ifdef MKC_PWM_MODULE
+        mkc_pwm_init(PWM_GPIO);
+        mkc_fan_set_start();
+        if (model.fan_duty == 0)
+        {
+            model.fan_duty = MKC_FAN_DUTY_DEFAULT;
         }
-        fan_set_duty(fan_duty);
+        mkc_fan_set_duty(model.fan_duty);
     #endif
     
     #ifdef MLX90614_IRTEMP_MODULE
@@ -306,24 +338,24 @@ void app_main()
         gpio_pad_select_gpio(MLX90614_GND_GPIO);
         gpio_set_direction(MLX90614_GND_GPIO, GPIO_MODE_OUTPUT);
         gpio_set_level(MLX90614_GND_GPIO, 0);
-        ir_temp_Init(MLX90614_SDA_GPIO, MLX90614_SCL_GPIO);
+        mkc_ir_temp_Init(MLX90614_SDA_GPIO, MLX90614_SCL_GPIO);
     #endif
 
     
-    #ifdef BLE_MODULE
-        ble_module_init(&ble_data_update);
+    #ifdef MKC_BLE_MODULE
+        mkc_ble_module_init(&ble_receive_datas, &ble_compose_response);
         //选择IO
         gpio_pad_select_gpio(BLE_RESET_GPIO);
         gpio_set_direction(BLE_RESET_GPIO, GPIO_MODE_INPUT);
-        set_attributes(MKC_IDX_FAN_SPEED_PERCENTAGE_VAL, fan_duty);
-        set_attributes(MKC_IDX_SWITCHA_VAL, switch_is_on);
-        set_attributes(MKC_IDX_AUTH_VAL, ble_auth);
-        // ble_module_reset();
+        // mkc_set_attributes(MKC_IDX_FAN_SPEED_PERCENTAGE_VAL, fan_duty);
+        // mkc_set_attributes(MKC_IDX_SWITCHA_VAL, switch_is_on);
+        // mkc_set_attributes(MKC_IDX_AUTH_VAL, ble_auth);
+        mkc_ble_module_reset();
     #endif
 
     // timer
-    timer_tools_Init(&action, 4000);
-    timer_tools_start();
+    mkc_timer_tools_Init(&action, 4000);
+    mkc_timer_tools_start();
 
     
     

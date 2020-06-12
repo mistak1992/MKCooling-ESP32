@@ -12,7 +12,7 @@
 
 pcnt_unit_t hallPcntUint = PCNT_UNIT_0;
 
-void hallInit(uint8_t input_gpio) {
+void mkc_hallInit(uint8_t input_gpio) {
     pcnt_config_t pcnt_config = {
         // Set PCNT input signal and control GPIOs
         .pulse_gpio_num = input_gpio,
@@ -47,22 +47,22 @@ void hallInit(uint8_t input_gpio) {
     
 }
 
-void hallStartCounter() {
+void mkc_hallStartCounter() {
     pcnt_counter_pause(hallPcntUint);
     pcnt_counter_clear(hallPcntUint);
     pcnt_counter_resume(hallPcntUint);  
 }
 
-void hallStopCounter() {
+void mkc_hallStopCounter() {
     pcnt_counter_pause(hallPcntUint);
     pcnt_counter_clear(hallPcntUint);          
 }
 
-void hallClearCounter() {
+void mkc_hallClearCounter() {
     pcnt_counter_clear(hallPcntUint);     
 }
 
-int16_t hallGetCounter() {
+int16_t mkc_hallGetCounter() {
     int16_t count;
     pcnt_get_counter_value(hallPcntUint,&count);
     return  count;       

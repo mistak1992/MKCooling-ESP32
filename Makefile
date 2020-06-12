@@ -3,7 +3,7 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := sec_gatts_demo
+PROJECT_NAME := mkcooling
 
 COMPONENT_ADD_INCLUDEDIRS := components/include
 

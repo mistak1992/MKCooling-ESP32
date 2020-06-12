@@ -1,13 +1,13 @@
 #include "driver/mcpwm.h"
 #include "soc/mcpwm_reg.h"
 #include "soc/mcpwm_struct.h"
-#define PWM_DEFAULT_DUTY_50 50.0
+#define MKC_PWM_DEFAULT_DUTY_50 50.0
 uint8_t static pwm_gpio;
 mcpwm_unit_t static mcpwm_num = MCPWM_UNIT_0;
 mcpwm_timer_t static timer_num = MCPWM_TIMER_0;
 float static current_duty;
 
-void pwm_init(uint8_t output_gpio)
+void mkc_pwm_init(uint8_t output_gpio)
 {
     printf("[timer_tools]:failed to start\r\n");
     pwm_gpio = output_gpio;
@@ -23,7 +23,7 @@ void pwm_init(uint8_t output_gpio)
 /**
  * @brief motor moves in forward direction, with duty cycle = duty %
  */
-void fan_set_duty(float duty_cycle)
+void mkc_fan_set_duty(float duty_cycle)
 {
     current_duty = duty_cycle;
     mcpwm_set_signal_low(mcpwm_num, timer_num, MCPWM_OPR_B);
@@ -31,7 +31,7 @@ void fan_set_duty(float duty_cycle)
     mcpwm_set_duty_type(mcpwm_num, timer_num, MCPWM_OPR_A, MCPWM_DUTY_MODE_0); //call this each time, if operator was previously in low/high state
 }
 
-float fan_get_duty()
+float mkc_fan_get_duty()
 {
     return current_duty;
 }
@@ -39,15 +39,15 @@ float fan_get_duty()
 /**
  * @brief motor stop
  */
-void fan_set_stop()
+void mkc_fan_set_stop()
 {
-    fan_set_duty(0.0);
+    mkc_fan_set_duty(0.0);
     mcpwm_set_signal_low(mcpwm_num, timer_num, MCPWM_OPR_A);
 }
 
 /**
  * @brief Configure MCPWM module for brushed dc motor
  */
-void fan_set_start() {
-    fan_set_duty(PWM_DEFAULT_DUTY_50);
+void mkc_fan_set_start() {
+    mkc_fan_set_duty(MKC_PWM_DEFAULT_DUTY_50);
 }

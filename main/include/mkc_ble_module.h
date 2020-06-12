@@ -21,8 +21,8 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-#ifndef _BLE_MODULE_H_
-#define _BLE_MODULE_H_
+#ifndef _MKC_BLE_MODULE_H_
+#define _MKC_BLE_MODULE_H_
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,38 +56,38 @@ enum mkc_idx_attributes
 {
     MKC_IDX_SVC,
 
-    MKC_IDX_TEMP_INT_CHAR,
-    MKC_IDX_TEMP_INT_VAL,
+    // MKC_IDX_TEMP_INT_CHAR,
+    // MKC_IDX_TEMP_INT_VAL,
 
-    MKC_IDX_TEMP_DEC_CHAR,
-    MKC_IDX_TEMP_DEC_VAL,
+    // MKC_IDX_TEMP_DEC_CHAR,
+    // MKC_IDX_TEMP_DEC_VAL,
 
-    MKC_IDX_IR_TEMPO_INT_CHAR,
-    MKC_IDX_IR_TEMPO_INT_VAL,
+    // MKC_IDX_IR_TEMPO_INT_CHAR,
+    // MKC_IDX_IR_TEMPO_INT_VAL,
 
-    MKC_IDX_IR_TEMPO_DEC_CHAR,
-    MKC_IDX_IR_TEMPO_DEC_VAL,
+    // MKC_IDX_IR_TEMPO_DEC_CHAR,
+    // MKC_IDX_IR_TEMPO_DEC_VAL,
 
-    MKC_IDX_IR_TEMPA_INT_CHAR,
-    MKC_IDX_IR_TEMPA_INT_VAL,
+    // MKC_IDX_IR_TEMPA_INT_CHAR,
+    // MKC_IDX_IR_TEMPA_INT_VAL,
 
-    MKC_IDX_IR_TEMPA_DEC_CHAR,
-    MKC_IDX_IR_TEMPA_DEC_VAL,
+    // MKC_IDX_IR_TEMPA_DEC_CHAR,
+    // MKC_IDX_IR_TEMPA_DEC_VAL,
 
-    MKC_IDX_FAN_SPEED_RPM_CHAR,
-    MKC_IDX_FAN_SPEED_RPM_VAL,
+    // MKC_IDX_FAN_SPEED_RPM_CHAR,
+    // MKC_IDX_FAN_SPEED_RPM_VAL,
 
-    MKC_IDX_FAN_SPEED_PERCENTAGE_CHAR,
-    MKC_IDX_FAN_SPEED_PERCENTAGE_VAL,
+    // MKC_IDX_FAN_SPEED_PERCENTAGE_CHAR,
+    // MKC_IDX_FAN_SPEED_PERCENTAGE_VAL,
 
-    MKC_IDX_SWITCHA_CHAR,
-    MKC_IDX_SWITCHA_VAL,
+    // MKC_IDX_SWITCHA_CHAR,
+    // MKC_IDX_SWITCHA_VAL,
 
-    MKC_IDX_AUTH_CHAR,
-    MKC_IDX_AUTH_VAL,
+    // MKC_IDX_AUTH_CHAR,
+    // MKC_IDX_AUTH_VAL,
 
-    MKC_IDX_DELAY_CHAR,
-    MKC_IDX_DELAY_VAL,
+    // MKC_IDX_DELAY_CHAR,
+    // MKC_IDX_DELAY_VAL,
 
     MKC_IDX_WRITEIN_CHAR,
     MKC_IDX_WRITEIN_VAL,
@@ -95,20 +95,28 @@ enum mkc_idx_attributes
     MKC_IDX_NB,
 };
 
+enum mkc_ble_response_typ{
+    MKC_BLE_RESPONSE_TYP_INFO = 0x02,
+    MKC_BLE_RESPONSE_TYP_STATUS = 0xff,
+};
+
 enum mkc_ble_state{
     MKC_BLE_STATE_DISCONNECTED,
     MKC_BLE_STATE_CONNECTED,
 };
 
-typedef void (*receive_datas_callback_t)(enum mkc_idx_attributes attr_idx, uint16_t value);
+typedef esp_err_t (*receive_datas_callback_t)(enum mkc_idx_attributes attr_idx, uint16_t len, uint8_t *value);
+typedef esp_err_t (*compose_response_callback_t)(enum mkc_ble_response_typ rsp_typ, uint8_t *value);
 
-    enum mkc_ble_state ble_get_state();
-    void set_attributes(enum mkc_idx_attributes attr_idx, uint16_t value);
-    uint16_t get_attrubutes(enum mkc_idx_attributes attr_idx);
-    void ble_module_init(receive_datas_callback_t update_callback);
-    void ble_module_reset();
-    void ble_module_deinit();
-    void set_sleep(bool is_sleep);
-    void switch_to_reset_mode(bool is_on);
+enum mkc_ble_state mkc_ble_get_state();
+void mkc_set_attributes(enum mkc_idx_attributes attr_idx, uint16_t value);
+uint16_t mkc_get_attrubutes(enum mkc_idx_attributes attr_idx);
+void mkc_ble_module_init(receive_datas_callback_t receive_callback, compose_response_callback_t response_callback);
+void mkc_ble_module_reset();
+void mkc_ble_module_deinit();
+void mkc_set_sleep(bool is_sleep);
+void mkc_switch_to_reset_mode(bool is_on);
+void send_datas(enum mkc_idx_attributes attr_idx, void *datas);
+
 
 #endif

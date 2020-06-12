@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include "esp_system.h"
 #include "esp_timer.h"
 
@@ -21,13 +23,13 @@ esp_timer_create_args_t timer_tools_arg = {
     .name = "timer_tools" //定时器名字
 };
 
-bool timer_tools_Init(timer_tools_callback_t callback, uint64_t interval){
+bool mkc_timer_tools_Init(timer_tools_callback_t callback, uint64_t interval){
     callback_t = callback;
     time_interval = interval;
     return true;
 }
 
-bool timer_tools_start() {
+bool mkc_timer_tools_start() {
     //开始创建一个重复周期的定时器并且执行
 	esp_err_t err = esp_timer_create(&timer_tools_arg, &timer_tools_handle);
 	err = esp_timer_start_periodic(timer_tools_handle, time_interval * 1000);
@@ -38,7 +40,7 @@ bool timer_tools_start() {
     return true;
 }
 
-bool timer_tools_stop() {
+bool mkc_timer_tools_stop() {
     esp_err_t err = esp_timer_stop(timer_tools_handle);
     if (err != ESP_OK) {
         printf("[timer_tools]:failed to stop\r\n");
@@ -47,7 +49,7 @@ bool timer_tools_stop() {
     return true;
 }
 
-bool timer_tools_dealloc() {
+bool mkc_timer_tools_dealloc() {
     esp_err_t err = esp_timer_delete(timer_tools_handle);
     if (err != ESP_OK) {
         printf("[timer_tools]:failed to dealloc\r\n");

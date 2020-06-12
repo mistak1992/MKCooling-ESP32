@@ -3,7 +3,7 @@
 #include "mkc_data_structure.h"
 #include <stdio.h>
 
-mkc_protocol_model_t mkc_protocol_data_to_model(uint8_t *data);
-void mkc_protocol_model_to_data(uint8_t *data, mkc_protocol_model_t model);
+mkc_protocol_model_t mkc_protocol_data_to_model(void *data);
+void mkc_protocol_model_to_data(void *data, mkc_protocol_model_t model);
 
 #endif
