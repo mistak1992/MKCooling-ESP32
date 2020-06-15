@@ -1,0 +1,7 @@
+{
+    "idf.port": "/dev/cu.SLAB_USBtoUART",
+    "C_Cpp.errorSquiggles": "Disabled",
+    "files.associations": {
+        "filesystem": "c"
+    }
+}

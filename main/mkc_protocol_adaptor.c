@@ -49,16 +49,16 @@ mkc_protocol_model_t mkc_protocol_data_to_model(void *data){
     currentIdx+=4;
     // crc
     model.crc = rawData[currentIdx];
-    // for (size_t i = 0; i < 16; i++)
-    // {
-    //     printf("%02x", data[i]);
-    //     if (i == 15)
-    //     {
-    //         printf("\n");
-    //     }else{
-    //         printf(":");
-    //     }
-    // }
+    for (size_t i = 0; i < 16; i++)
+    {
+        printf("%02x", rawData[i]);
+        if (i == 15)
+        {
+            printf("\n");
+        }else{
+            printf(":");
+        }
+    }
     return model;
 }
 

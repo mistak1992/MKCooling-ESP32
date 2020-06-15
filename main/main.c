@@ -72,11 +72,12 @@ void action() {
     //     gpio_set_level(LED_R_IO, 0);
     // }
     // light_on = !light_on;
+    ESP_LOGI(MAIN_TAG, "Current Data || temp_a:%d.%d temp_o:%d.%d fan_duty:%d fan_rpm:%d", data_model.temp_ir_a_data.temp_int, data_model.temp_ir_a_data.temp_dec, data_model.temp_ir_o_data.temp_int, data_model.temp_ir_o_data.temp_dec, data_model.fan_duty, data_model.fan_rpm);
 
     #ifdef MKC_HALL_COUNTER_MODULE
-        data_model.fan_rpm = mkc_hallGetCounter() * 12;
-        data_model.fan_duty = mkc_fan_get_duty();
-        printf("rpm:%d duty:%d\r\n", data_model.fan_rpm, data_model.fan_duty);
+        data_model.fan_rpm = (uint16_t)(mkc_hallGetCounter() * 12);
+        data_model.fan_duty = (uint8_t)(mkc_fan_get_duty());
+        // printf("rpm:%d duty:%d\r\n", data_model.fan_rpm, data_model.fan_duty);
         mkc_hallClearCounter();
     #endif 
 
@@ -176,6 +177,7 @@ void action() {
 esp_err_t ble_receive_datas(enum mkc_idx_attributes attr_idx, uint16_t len, uint8_t *value){
     mkc_protocol_model_t model = mkc_protocol_data_to_model(value);
     mkc_persist_set_data(model);
+    // data_model = model;
     switch (attr_idx)
     {
     case MKC_IDX_WRITEIN_VAL:{
@@ -183,13 +185,21 @@ esp_err_t ble_receive_datas(enum mkc_idx_attributes attr_idx, uint16_t len, uint
         
         switch (model.typ)
         {
+        case 02:{
+            // fetchInfo
+            return ESP_OK;
+            break;
+        }
         case 03:{
-            float fan_duty = model.fan_duty / 100.0;
+            float fan_duty = model.fan_duty;
+            ESP_LOGI(MAIN_TAG, "Set duty: %lf", fan_duty);
             mkc_fan_set_duty(fan_duty);
+            return ESP_OK;
             break;
         }
         case 04:{
             uint16_t delay = model.delay;
+            return ESP_OK;
             break;
         }
         default:
@@ -259,36 +269,9 @@ void app_main()
     #ifdef MKC_PERSIST_MODULE
         mkc_persist_module_init();
         mkc_protocol_model_t model = mkc_persist_get_data();
+        // data_model = new mkc_protocol_model_t;
         data_model.fan_duty = model.fan_duty;
     #endif
-
-    // uint8_t fakeData[16] = {0x10, 0x02, 0x08, 0x1e, 0x02, 0x19, 0x05, 0x56, 0x08, 0x00, 0x64, 0x1f, 0x96, 0x0c, 0x24, 0xd2};
-
-    // // mkc_protocol_model_t model;
-    // model.hdr = 0x10;
-    // model.typ = 0x02;
-    // model.len = 8;
-    // // uint8_t data[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-    // // model.data = &data;
-    // mkc_temp_ir_data_t temp_o;
-    // temp_o.temp_int = 30;
-    // temp_o.temp_dec = 2;
-    // mkc_temp_ir_data_t temp_a;
-    // temp_a.temp_int = 25;
-    // temp_a.temp_dec = 5;
-    // model.temp_ir_a_data = temp_a;
-    // model.temp_ir_o_data = temp_o;
-    // model.fan_duty = 86;
-    // model.fan_rpm = 2048;
-    // model.delay = 0x64;
-    // uint8_t token[4] = {0xaa, 0xbb, 0xcc, 0xdd};
-    // model.token = &token;
-    // model.crc = 0x99;
-    // uint8_t *datas;
-    // mkc_protocol_model_to_data(&datas, model);
-
-    // model = mkc_protocol_data_to_model(&datas);
-    // printf("typ: %02u\n", model.typ);
 
     /* Print chip information */
     esp_chip_info_t chip_info;
@@ -302,16 +285,6 @@ void app_main()
 
     printf("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
             (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
-
-    // for (int i = 10; i >= 0; i--) {
-    //     printf("Restarting in %d seconds...\n", i);
-    //     vTaskDelay(1000 / portTICK_PERIOD_MS);
-    // }
-    // //选择IO
-    // gpio_pad_select_gpio(LED_R_IO);
-    // //设置IO为输出
-    // gpio_set_direction(LED_R_IO, GPIO_MODE_OUTPUT);
-    // hall
     
     #ifdef MKC_HALL_COUNTER_MODULE
         mkc_hallInit(HALL_GPIO);
@@ -350,7 +323,7 @@ void app_main()
         // mkc_set_attributes(MKC_IDX_FAN_SPEED_PERCENTAGE_VAL, fan_duty);
         // mkc_set_attributes(MKC_IDX_SWITCHA_VAL, switch_is_on);
         // mkc_set_attributes(MKC_IDX_AUTH_VAL, ble_auth);
-        mkc_ble_module_reset();
+        // mkc_ble_module_reset();
     #endif
 
     // timer
