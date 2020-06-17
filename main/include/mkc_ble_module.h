@@ -58,7 +58,8 @@ enum mkc_idx_attributes
 
     MKC_IDX_WRITEIN_CHAR,
     MKC_IDX_WRITEIN_VAL,
-
+    MKC_IDX_WRITEIN_CHAR_CFG,
+    
     MKC_IDX_NB,
 };
 
@@ -76,14 +77,12 @@ typedef esp_err_t (*receive_datas_callback_t)(enum mkc_idx_attributes attr_idx, 
 typedef esp_err_t (*compose_response_callback_t)(enum mkc_ble_response_typ rsp_typ, uint8_t *value);
 
 enum mkc_ble_state mkc_ble_get_state();
-void mkc_set_attributes(enum mkc_idx_attributes attr_idx, uint16_t value);
-uint16_t mkc_get_attrubutes(enum mkc_idx_attributes attr_idx);
 void mkc_ble_module_init(receive_datas_callback_t receive_callback, compose_response_callback_t response_callback);
 void mkc_ble_module_reset();
 void mkc_ble_module_deinit();
 void mkc_set_sleep(bool is_sleep);
 void mkc_switch_to_reset_mode(bool is_on);
-void send_datas(enum mkc_idx_attributes attr_idx, void *datas);
+esp_err_t send_notify(enum mkc_idx_attributes attr_idx, uint16_t len, uint8_t *value);
 
 
 #endif

@@ -49,16 +49,16 @@ mkc_protocol_model_t mkc_protocol_data_to_model(void *data){
     currentIdx+=4;
     // crc
     model.crc = rawData[currentIdx];
-    for (size_t i = 0; i < 16; i++)
-    {
-        printf("%02x", rawData[i]);
-        if (i == 15)
-        {
-            printf("\n");
-        }else{
-            printf(":");
-        }
-    }
+    // for (size_t i = 0; i < 16; i++)
+    // {
+    //     printf("%02x", rawData[i]);
+    //     if (i == 15)
+    //     {
+    //         printf("\n");
+    //     }else{
+    //         printf(":");
+    //     }
+    // }
     return model;
 }
 
@@ -110,17 +110,17 @@ void mkc_protocol_model_to_data(void *data, mkc_protocol_model_t model){
     {
         rawData[i] = esp_random() & 0x000000ff;//random_number(0, 0xfe);
     }
-    // debug print
-    for (size_t i = 0; i < 16; i++)
-    {
-        printf("%02x", rawData[i]);
-        if (i == 15)
-        {
-            printf("\n");
-        }else{
-            // printf(":");
-        }
-    }
+    // // debug print
+    // for (size_t i = 0; i < 16; i++)
+    // {
+    //     printf("%02x", rawData[i]);
+    //     if (i == 15)
+    //     {
+    //         printf("\n");
+    //     }else{
+    //         // printf(":");
+    //     }
+    // }
     memcpy(data, rawData, 16 * sizeof(uint8_t));
     free(rawData);
 }
