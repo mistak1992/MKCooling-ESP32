@@ -48,14 +48,6 @@
 #define MKC_BASE_FACTOR 40
 // IR_Temperature
 uint8_t switch_is_on;
-// uint8_t a_temp_int;
-// uint8_t a_temp_dec;
-// uint8_t o_temp_int;
-// uint8_t o_temp_dec;
-
-// PWM
-// int fan_rpm;
-// uint8_t fan_duty;
 
 // data model
 mkc_protocol_model_t data_model;
@@ -90,6 +82,7 @@ uint16_t start_rgb = 0;
 
 led_strip_t *strip;
 
+<<<<<<< HEAD
 /**
  * @brief Simple helper function, converting HSV color space to RGB color space
  *
@@ -202,17 +195,90 @@ void action()
                     mkc_switch_to_reset_mode(true);
                     ESP_LOGI(MAIN_TAG, "Temperature satisfied");
                     mkc_ble_module_reset();
+=======
+bool fan_on = false;
+
+esp_err_t ble_compose_response(enum mkc_ble_response_typ rsp_typ, uint8_t *value);
+
+void action() {
+    // on or off
+    if (data_model.fan_duty == 0)
+    {
+        fan_on = false;
+    }else{  
+        fan_on = true;
+    }
+    // round code
+    if (count > 0){
+        count--;
+    }else{
+        if (data_model.delay <= 0){
+            count = 1;
+        }else{
+            count = data_model.delay;
+        }
+        // if (light_on == true){
+        //     //红灯灭
+        //     gpio_set_level(LED_R_IO, 1);
+        // }else{
+        //     //红灯亮
+        //     gpio_set_level(LED_R_IO, 0);
+        // }
+        // light_on = !light_on;
+        ESP_LOGI(MAIN_TAG, "Current Data || temp_a:%d.%d temp_o:%d.%d fan_duty:%d fan_rpm:%d", data_model.temp_ir_a_data.temp_int, data_model.temp_ir_a_data.temp_dec, data_model.temp_ir_o_data.temp_int, data_model.temp_ir_o_data.temp_dec, data_model.fan_duty, data_model.fan_rpm);
+
+        #ifdef MKC_HALL_COUNTER_MODULE
+            data_model.fan_rpm = (uint16_t)(mkc_hallGetCounter() * 12);
+            data_model.fan_duty = (uint8_t)(mkc_fan_get_duty());
+            // printf("rpm:%d duty:%d\r\n", data_model.fan_rpm, data_model.fan_duty);
+            mkc_hallClearCounter();
+        #endif 
+
+        #ifdef MLX90614_IRTEMP_MODULE
+            if (ble_state == MKC_BLE_STATE_CONNECTED){
+                // if (gpio_get_level(MLX90614_VCC_GPIO) == 1){
+                //     gpio_set_level(MLX90614_VCC_GPIO, 0);
+                // }
+            }else if (ble_state == MKC_BLE_STATE_DISCONNECTED){
+                // if (gpio_get_level(MLX90614_VCC_GPIO) == 0){
+                //     gpio_set_level(MLX90614_VCC_GPIO, 1);
+                // }
+            }
+        #ifdef MKC_BLE_MODULE
+            if (switch_is_on != 0){
+                data_model.temp_ir_o_data = mkc_get_object_temp_struct();
+                data_model.temp_ir_a_data = mkc_get_ambient_temp_struct();
+                if (resetCounter == 0)
+                {   
+                    if (data_model.temp_ir_o_data.temp_int > 45)
+                    {
+                        resetCounter = 5;
+                        mkc_switch_to_reset_mode(true);
+                        ESP_LOGI(MAIN_TAG, "Temperature satisfied");
+                        mkc_ble_module_reset();
+                    }
+                    else
+                    {
+                        mkc_switch_to_reset_mode(false);
+                    }
+>>>>>>> 9ce740068d74b4a9a5b1d13486b0cdf4454dbc75
                 }
-                else
+                if (resetCounter > 0)
                 {
-                    mkc_switch_to_reset_mode(false);
+                    resetCounter--;
+                    ESP_LOGI(MAIN_TAG, "Counter is running");
                 }
+                ESP_LOGI(MAIN_TAG, "IR Temperature int data :%d.%d %d.%d \n", data_model.temp_ir_a_data.temp_int, data_model.temp_ir_a_data.temp_dec, data_model.temp_ir_o_data.temp_int, data_model.temp_ir_o_data.temp_dec);
             }
-            if (resetCounter > 0)
+        #endif
+        #endif
+
+        #ifdef MKC_BLE_MODULE
+            if (resetCounter == 4)
             {
-                resetCounter--;
-                ESP_LOGI(MAIN_TAG, "Counter is running");
+                mkc_fan_set_duty(100);
             }
+<<<<<<< HEAD
             ESP_LOGI(MAIN_TAG, "IR Temperature int data :%d.%d %d.%d \n", data_model.temp_ir_a_data.temp_int, data_model.temp_ir_a_data.temp_dec, data_model.temp_ir_o_data.temp_int, data_model.temp_ir_o_data.temp_dec);
         }
 #endif
@@ -319,6 +385,33 @@ void action()
         ESP_ERROR_CHECK(strip->clear(strip, 100));
     }
 #endif
+=======
+            if (resetCounter == 3)
+            {
+                mkc_fan_set_duty(0);
+            }
+            if (resetCounter == 2)
+            {
+                mkc_fan_set_duty(100);
+            }
+            if (resetCounter == 1)
+            {
+                mkc_fan_set_duty(0);
+            }
+            // if (count > 1){
+            //     count--;
+            // }else if(count == 1){
+            //     count = 0;
+            // }
+            // send notify
+            uint8_t *notifyDatas = calloc(16, sizeof(uint8_t));
+            ble_compose_response(MKC_BLE_RESPONSE_TYP_INFO, notifyDatas);
+            send_notify(MKC_IDX_WRITEIN_VAL, 16, notifyDatas);
+            free(notifyDatas);
+        #endif
+    }
+    
+>>>>>>> 9ce740068d74b4a9a5b1d13486b0cdf4454dbc75
 }
 
 esp_err_t ble_receive_datas(enum mkc_idx_attributes attr_idx, uint16_t len, uint8_t *value)
@@ -348,9 +441,15 @@ esp_err_t ble_receive_datas(enum mkc_idx_attributes attr_idx, uint16_t len, uint
             return ESP_OK;
             break;
         }
+<<<<<<< HEAD
         case 04:
         {
             uint16_t delay = model.delay;
+=======
+        case 04:{
+            uint8_t delay = model.delay;
+            data_model.delay = delay;
+>>>>>>> 9ce740068d74b4a9a5b1d13486b0cdf4454dbc75
             return ESP_OK;
             break;
         }
@@ -385,6 +484,11 @@ esp_err_t ble_compose_response(enum mkc_ble_response_typ rsp_typ, uint8_t *value
         mkc_protocol_model_t model;
         model.hdr = 0x10;
         model.typ = 0xfe;
+        model.temp_ir_a_data = data_model.temp_ir_a_data;
+        model.temp_ir_o_data = data_model.temp_ir_o_data;
+        model.fan_duty = data_model.fan_duty;
+        model.fan_rpm = data_model.fan_rpm;
+        model.delay = data_model.delay;
         uint8_t token[4] = {0x11, 0x22, 0x33, 0x44};
         model.token = &token;
         model.crc = crc8_be(0, model.token, 4);
@@ -502,7 +606,11 @@ void app_main()
 #endif
 
     // timer
+<<<<<<< HEAD
     mkc_timer_tools_Init(&action, MKC_TIMER_INTERVAL);
+=======
+    mkc_timer_tools_Init(&action, 1000);
+>>>>>>> 9ce740068d74b4a9a5b1d13486b0cdf4454dbc75
     mkc_timer_tools_start();
     // printf("Restarting now.\n");
     // fflush(stdout);

@@ -47,6 +47,8 @@ static uint8_t sec_service_uuid[16] = {
     0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80, 0x00, 0x10, 0x00, 0x00, 0x18, 0x90, 0x00, 0x00,
 };
 
+bool canNotify = false;
+
 esp_gatt_if_t global_gatt_if;
 
 uint16_t global_conn_id;
@@ -144,11 +146,12 @@ static const uint16_t cooling_svc = GATT_UUID_MKCOOLING_SVC;
 #define CHAR_DECLARATION_SIZE   (sizeof(uint8_t))
 static const uint16_t primary_service_uuid = ESP_GATT_UUID_PRI_SERVICE;
 static const uint16_t character_declaration_uuid = ESP_GATT_UUID_CHAR_DECLARE;
-// static const uint16_t character_client_config_uuid = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
+static const uint16_t character_client_config_uuid = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
 // static const uint8_t char_prop_notify = ESP_GATT_CHAR_PROP_BIT_NOTIFY;
 // static const uint8_t char_prop_read = ESP_GATT_CHAR_PROP_BIT_READ;
 // static const uint8_t char_prop_read_write = ESP_GATT_CHAR_PROP_BIT_WRITE|ESP_GATT_CHAR_PROP_BIT_READ;
 static const uint8_t char_prop_read_write_notify = ESP_GATT_CHAR_PROP_BIT_WRITE|ESP_GATT_CHAR_PROP_BIT_READ|ESP_GATT_CHAR_PROP_BIT_NOTIFY;
+static const uint8_t write_in_ccc[2]      = {0x00, 0x00};
 
 /// MKCooling Sensor Service - MKCooling WriteIn, write&read
 static const uint16_t cooling_write_in_uuid = 0x1891;
@@ -171,6 +174,10 @@ static const esp_gatts_attr_db_t cooling_gatt_db[MKC_IDX_NB] =
     [MKC_IDX_WRITEIN_VAL] =
     {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_write_in_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED,
       sizeof(uint8_t) * 16, sizeof(write_in_val), (uint8_t *)write_in_val}},
+
+    [MKC_IDX_WRITEIN_CHAR_CFG]  =
+    {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
+      sizeof(uint16_t), sizeof(write_in_ccc), (uint8_t *)write_in_ccc}},
 };
 
 static char *esp_key_type_to_str(esp_ble_key_type_t key_type)
@@ -247,6 +254,36 @@ static char *esp_auth_req_to_str(esp_ble_auth_req_t auth_req)
    }
 
    return auth_str;
+}
+
+esp_err_t send_notify(enum mkc_idx_attributes attr_idx, uint16_t len, uint8_t *value){
+    switch (attr_idx)
+    {
+    case MKC_IDX_WRITEIN_VAL:{
+        if (canNotify == true){
+            // memcpy(&write_in_val, value, sizeof(uint8_t) * 16);
+            esp_ble_gatts_set_attr_value(cooling_handle_table[MKC_IDX_WRITEIN_VAL], len, value);
+            esp_ble_gatts_send_indicate(global_gatt_if, global_conn_id, cooling_handle_table[MKC_IDX_WRITEIN_VAL], len, value, false);
+            // for (size_t i = 0; i < 16; i++)
+            // {
+            //     printf("%02x", value[i]);
+            //     if (i == 15)
+            //     {
+            //         printf("\n");
+            //     }else{
+            //         printf(":");
+            //     }
+            // }
+            return ESP_OK;
+        }else{
+            return ESP_FAIL;
+        }
+        break;
+    }
+    default:
+        return ESP_FAIL;
+        break;
+    }
 }
 
 static void show_bonded_devices(void)
@@ -433,7 +470,7 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 
 static void gatts_profile_event_handler(esp_gatts_cb_event_t event,
                                         esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param)
-{
+{   
     global_gatt_if = gatts_if;
     ESP_LOGV(GATTS_TABLE_TAG, "event = %x\n",event);
     switch (event) {
@@ -446,6 +483,9 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event,
             // esp_ble_gatts_send_indicate(gatts_if, param->read.conn_id, param->read.trans_id, gatt_status, &rsp);
             break;
         case ESP_GATTS_READ_EVT:{
+            global_conn_id = param->read.conn_id;
+            global_trans_id = param->read.trans_id;
+            ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_READ_EVT");
             esp_gatt_status_t gatt_status = ESP_GATT_OK;
             esp_gatt_rsp_t rsp;
             memset(&rsp, 0, sizeof(esp_gatt_rsp_t));
@@ -470,10 +510,43 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event,
             free(response_datas);
             break;
         }
-        case ESP_GATTS_WRITE_EVT:
+        case ESP_GATTS_WRITE_EVT:{  
+            global_conn_id = param->write.conn_id;
+            global_trans_id = param->write.trans_id;
             ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_WRITE_EVT, write value:");
             esp_log_buffer_hex(GATTS_TABLE_TAG, param->write.value, param->write.len);
-            printf("handle:%d conn:%d trans:%d\n", param->write.handle, param->write.conn_id, param->write.trans_id);
+            // printf("handle:%d conn:%d trans:%d\n", param->write.handle, param->write.conn_id, param->write.trans_id);
+            if (cooling_handle_table[MKC_IDX_WRITEIN_CHAR_CFG] == param->write.handle && param->write.len == 2){
+                uint16_t descr_value = param->write.value[1]<<8 | param->write.value[0];
+                if (descr_value == 0x0001){
+                    ESP_LOGI(GATTS_TABLE_TAG, "notify enable");
+                    uint8_t notify_data[15];
+                    for (int i = 0; i < sizeof(notify_data); ++i)
+                    {
+                        notify_data[i] = i % 0xff;
+                    }
+                    //the size of notify_data[] need less than MTU size
+                    esp_ble_gatts_send_indicate(gatts_if, param->write.conn_id, cooling_handle_table[MKC_IDX_WRITEIN_CHAR_CFG],
+                                            sizeof(notify_data), notify_data, false);
+                }else if (descr_value == 0x0002){
+                    ESP_LOGI(GATTS_TABLE_TAG, "indicate enable");
+                    uint8_t indicate_data[15];
+                    for (int i = 0; i < sizeof(indicate_data); ++i)
+                    {
+                        indicate_data[i] = i % 0xff;
+                    }
+                    //the size of indicate_data[] need less than MTU size
+                    esp_ble_gatts_send_indicate(gatts_if, param->write.conn_id, cooling_handle_table[MKC_IDX_WRITEIN_CHAR_CFG],
+                                        sizeof(indicate_data), indicate_data, true);
+                }
+                else if (descr_value == 0x0000){
+                    ESP_LOGI(GATTS_TABLE_TAG, "notify/indicate disable ");
+                }else{
+                    ESP_LOGE(GATTS_TABLE_TAG, "unknown descr value");
+                    esp_log_buffer_hex(GATTS_TABLE_TAG, param->write.value, param->write.len);
+                }
+                return;
+            }
             esp_log_buffer_hex(GATTS_TABLE_TAG, write_in_val, sizeof(uint8_t) * 16);
             esp_gatt_rsp_t rsp;
             esp_gatt_status_t gatt_status = ESP_GATT_OK;
@@ -501,17 +574,24 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event,
        		esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, gatt_status, &rsp);
             free(response_datas);
             break;
-        case ESP_GATTS_EXEC_WRITE_EVT:
+        }
+        case ESP_GATTS_EXEC_WRITE_EVT:{
+            global_conn_id = param->exec_write.conn_id;
+            global_trans_id = param->write.trans_id;
             ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_EXEC_WRITE_EVT");
             break;
+        }
+            
         case ESP_GATTS_RESPONSE_EVT:
             ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_RESPONSE_EVT");
             break;
         case ESP_GATTS_MTU_EVT:
+            global_conn_id = param->mtu.conn_id;
             ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_MTU_EVT");
             break;
         case ESP_GATTS_CONF_EVT:
-            ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_CONF_EVT");
+            global_conn_id = param->conf.conn_id;
+            // ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_CONF_EVT");
             break;
         case ESP_GATTS_UNREG_EVT:
             ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_UNREG_EVT");
@@ -526,6 +606,8 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event,
             ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_STOP_EVT");
             break;
         case ESP_GATTS_CONNECT_EVT:{
+            global_conn_id = param->connect.conn_id;
+            canNotify = true;
             ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_CONNECT_EVT");
             /* start security connect with peer device when receive the connect event sent by the master */
             esp_ble_set_encryption(param->connect.remote_bda, ESP_BLE_SEC_ENCRYPT_NO_MITM);
@@ -533,6 +615,8 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event,
             break;
         }    
         case ESP_GATTS_DISCONNECT_EVT:
+            global_conn_id = param->disconnect.conn_id;
+            canNotify = false;
             ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_DISCONNECT_EVT, disconnect reason 0x%x", param->disconnect.reason);
             /* start advertising again when missing the connect */
             ble_gap_start_advertising_custom();
@@ -543,10 +627,12 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event,
         case ESP_GATTS_CANCEL_OPEN_EVT:
             break;
         case ESP_GATTS_CLOSE_EVT:
+            global_conn_id = param->close.conn_id;
             break;
         case ESP_GATTS_LISTEN_EVT:
             break;
         case ESP_GATTS_CONGEST_EVT:
+            global_conn_id = param->congest.conn_id;
             break;
         case ESP_GATTS_CREAT_ATTR_TAB_EVT: {
             ESP_LOGI(GATTS_TABLE_TAG, "The number handle = %x",param->add_attr_tab.num_handle);
