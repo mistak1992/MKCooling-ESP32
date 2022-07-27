@@ -14,6 +14,7 @@
 #define MKCOOLING_PROFILE_NUM                         1
 #define MKCOOLING_PROFILE_APP_IDX                     0
 #define MKCOOLING_APP_ID                              0x55
+// 开发中使用别名代替 "MKCooling"
 #define EXCAMPLE_DEVICE_NAME                          "MKCooling"
 #define MKCOOLING_SVC_INST_ID                         0
 
@@ -166,9 +167,9 @@ static const esp_gatts_attr_db_t cooling_gatt_db[MKC_IDX_NB] =
     {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ_ENCRYPTED,
       CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write_notify}},
 
-    // MKCooling WriteIn Characteristic Value
+    // MKCooling WriteIn Characteristic Value  |ESP_GATT_PERM_READ_ENCRYPTED
     [MKC_IDX_WRITEIN_VAL] =
-    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_write_in_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED|ESP_GATT_PERM_READ_ENCRYPTED,
+    {{ESP_GATT_RSP_BY_APP}, {ESP_UUID_LEN_16, (uint8_t *)&cooling_write_in_uuid, ESP_GATT_PERM_WRITE_ENCRYPTED,
       sizeof(uint8_t) * 16, sizeof(write_in_val), (uint8_t *)write_in_val}},
 };
 
@@ -702,7 +703,7 @@ void mkc_ble_module_init(receive_datas_callback_t receive_callback, compose_resp
      * remove_all_bonded_devices();
      */
     // remove_all_bonded_devices();
-    // ble_module_reset();
+    mkc_ble_module_reset();
     show_bonded_devices();
 }
 
@@ -728,7 +729,7 @@ void mkc_set_sleep(bool need_sleep){
     if (need_sleep == true){
         esp_bt_sleep_enable();
     }else{
-        esp_bt_controller_wakeup_request();
+        esp_bt_sleep_disable();
     }
 }
 

@@ -21,7 +21,7 @@ typedef struct
     uint8_t crc;
     uint8_t fan_duty;
     uint16_t fan_rpm;
-    uint16_t delay;
+    uint8_t delay;
 } mkc_protocol_model_t;
 
 typedef struct

@@ -1,7 +1,31 @@
 {
-    "idf.port": "/dev/cu.SLAB_USBtoUART",
+    "idf.port": "/dev/cu.usbserial-7152AB1993",
     "C_Cpp.errorSquiggles": "Disabled",
     "files.associations": {
-        "filesystem": "c"
-    }
+        "filesystem": "c",
+        "mkc_temp_ir_sensor.h": "c",
+        "mkc_protocol_adaptor.h": "c",
+        "rmt.h": "c",
+        "led_strip.h": "c",
+        "gpio.h": "c",
+        "__hash_table": "c",
+        "__split_buffer": "c",
+        "__tree": "c",
+        "atomic": "c",
+        "deque": "c",
+        "ios": "c",
+        "list": "c",
+        "map": "c",
+        "set": "c",
+        "string": "c",
+        "system_error": "c",
+        "unordered_map": "c",
+        "unordered_set": "c",
+        "vector": "c"
+    },
+    "idf.adapterTargetName": "esp32",
+    "idf.openOcdConfigs": [
+        "interface/ftdi/esp32_devkitj_v1.cfg",
+        "target/esp32.cfg"
+    ]
 }
