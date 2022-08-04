@@ -789,7 +789,7 @@ void mkc_ble_module_init(receive_datas_callback_t receive_callback, compose_resp
      * remove_all_bonded_devices();
      */
     // remove_all_bonded_devices();
-    mkc_ble_module_reset();
+    // mkc_ble_module_reset();
     show_bonded_devices();
 }
 

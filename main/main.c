@@ -30,8 +30,8 @@
 // #define MLX90614_IRTEMP_MODULE
 #define MKC_BLE_MODULE
 #define MKC_PERSIST_MODULE
-// #define MKC_CONTROL_MODULE
-// #define MKC_RGB_MODULE
+#define MKC_CONTROL_MODULE
+#define MKC_RGB_MODULE
 
 #define LED_R_IO 27
 #define HALL_GPIO 32 // 13
@@ -70,6 +70,11 @@ int resetCounter = 0;
 // 灯
 // RGB灯
 bool light_on = false;
+enum light_mode {
+  LIGHT_MODE_COMMON,
+  LIGHT_MODE_RESET,
+};
+enum light_mode led_mode = LIGHT_MODE_COMMON;
 uint32_t red = 0;
 uint32_t green = 0;
 uint32_t blue = 0;
@@ -135,24 +140,37 @@ void led_strip_hsv2rgb(uint32_t h, uint32_t s, uint32_t v, uint32_t *r, uint32_t
   }
 }
 
+void led_strip_duty(uint8_t duty, uint32_t *r, uint32_t *g, uint32_t *b) {
+  uint8_t rgb_max = 255;
+  float duty_max = 100.f;
+  *r = rgb_max * (float)(duty > 33 && duty < 66 ? (duty - 33) : (duty <= 33 ? 0 : (66 - 33)) ) / (66.f - 33.f);
+  *g = rgb_max * (1 - (float)(duty > 66 ? (duty - 66) : 0 ) / (duty_max - 66.f));
+  *b = rgb_max * (float)(duty < 33 ? (33 - duty) : 0) / 33.f;
+}
+
+void led_strip_reset(int rc, uint32_t *r, uint32_t *g, uint32_t *b) {
+  if (rc % 2 == 0 && rc > 2) {
+    *r = 255.f;
+  }else{
+    *r = 0.f;
+  }
+  *g = 0.f;
+  if (rc == 2) {
+    *b = 255.f;
+  }else{
+    *b = 0.f;
+  }
+}
+
 void action()
 {
-  // if (light_on == true){
-  //     //红灯灭
-  //     gpio_set_level(LED_R_IO, 1);
-  // }else{
-  //     //红灯亮
-  //     gpio_set_level(LED_R_IO, 0);
-  // }
-  // light_on = !light_on;
-
   // MKC_BASE_FACTOR 次才执行
   baseCounter++;
   if (baseCounter >= MKC_BASE_FACTOR)
   {
     // if (true) {
     baseCounter = 0;
-    ESP_LOGI(MAIN_TAG, "Current Data || temp_a:%d.%d temp_o:%d.%d fan_duty:%d fan_rpm:%d", data_model.temp_ir_a_data.temp_int, data_model.temp_ir_a_data.temp_dec, data_model.temp_ir_o_data.temp_int, data_model.temp_ir_o_data.temp_dec, data_model.fan_duty, data_model.fan_rpm);
+    ESP_LOGI(MAIN_TAG, "Current Data || temp_a:%d.%d temp_o:%d.%d fan_duty:%d fan_rpm:%d R:%d G:%d B:%d", data_model.temp_ir_a_data.temp_int, data_model.temp_ir_a_data.temp_dec, data_model.temp_ir_o_data.temp_int, data_model.temp_ir_o_data.temp_dec, data_model.fan_duty, data_model.fan_rpm, red, green, blue);
 
 #ifdef MKC_HALL_COUNTER_MODULE
     data_model.fan_rpm = (uint16_t)(mkc_hallGetCounter() * 12);
@@ -219,22 +237,22 @@ void action()
       // mkc_set_attributes(MKC_IDX_IR_TEMPO_INT_VAL, o_temp_int);
       // mkc_set_attributes(MKC_IDX_IR_TEMPO_DEC_VAL, o_temp_dec);
       // mkc_set_attributes(MKC_IDX_FAN_SPEED_RPM_VAL, (uint16_t)fan_rpm);
-      if (resetCounter == 4)
-      {
-        mkc_fan_set_duty(100);
-      }
-      if (resetCounter == 3)
-      {
-        mkc_fan_set_duty(0);
-      }
-      if (resetCounter == 2)
-      {
-        mkc_fan_set_duty(100);
-      }
-      if (resetCounter == 1)
-      {
-        mkc_fan_set_duty(0);
-      }
+      // if (resetCounter == 4)
+      // {
+      //   mkc_fan_set_duty(100);
+      // }
+      // if (resetCounter == 3)
+      // {
+      //   mkc_fan_set_duty(0);
+      // }
+      // if (resetCounter == 2)
+      // {
+      //   mkc_fan_set_duty(100);
+      // }
+      // if (resetCounter == 1)
+      // {
+      //   mkc_fan_set_duty(0);
+      // }
       // uint16_t freq = mkc_get_attrubutes(MKC_IDX_DELAY_VAL);
       // if ((int)freq != 0){
       //     count = freq * 30;
@@ -271,24 +289,29 @@ void action()
         // ...
         if (ev.event == BUTTON_DOWN)
         {
-          mkc_ble_module_reset();
+          
         }
         if (ev.event == BUTTON_HELD)
         {
           if (isLongpressContinue == false)
           {
-            light_on = !light_on;
+            isLongpressContinue = true;
           }
-          isLongpressContinue = true;
         }
         if (ev.event == BUTTON_UP)
         {
           if (isLongpressContinue == true)
           {
+            mkc_ble_module_reset();
+            light_on = true;
+            led_mode = LIGHT_MODE_RESET;
+            resetCounter = 50;
             isLongpressContinue = false;
+          }else{
+            led_mode = LIGHT_MODE_COMMON;
+            light_on = !light_on;
           }
         }
-        ESP_LOGI(MAIN_TAG, "button action");
       }
     }
 #endif
@@ -296,17 +319,30 @@ void action()
 #ifdef MKC_RGB_MODULE
     if (light_on == true)
     {
-      // Build RGB values
-      hue = start_rgb;
-      led_strip_hsv2rgb(hue, 100, 100, &red, &green, &blue);
-      // Write RGB values to strip driver
-      ESP_ERROR_CHECK(strip->set_pixel(strip, 0, red, green, blue));
-      // Flush RGB values to LEDs
-      ESP_ERROR_CHECK(strip->refresh(strip, 100));
-      vTaskDelay(pdMS_TO_TICKS(EXAMPLE_CHASE_SPEED_MS));
-      // strip->clear(strip, 50);
-      vTaskDelay(pdMS_TO_TICKS(EXAMPLE_CHASE_SPEED_MS));
-      start_rgb += 60;
+      if (led_mode == LIGHT_MODE_COMMON) {
+        // Build RGB values
+        // hue = start_rgb;
+        // led_strip_hsv2rgb(hue, 100, 100, &red, &green, &blue);
+        led_strip_duty(data_model.fan_duty, &red, &green, &blue);
+        // Write RGB values to strip driver
+        ESP_ERROR_CHECK(strip->set_pixel(strip, 0, red, green, blue));
+        // Flush RGB values to LEDs
+        ESP_ERROR_CHECK(strip->refresh(strip, 100));
+        // vTaskDelay(pdMS_TO_TICKS(EXAMPLE_CHASE_SPEED_MS));
+        // strip->clear(strip, 50);
+        // start_rgb += 1;
+      }else{
+        led_strip_reset(resetCounter, &red, &green, &blue);
+        ESP_ERROR_CHECK(strip->set_pixel(strip, 0, red, green, blue));
+        ESP_ERROR_CHECK(strip->refresh(strip, 100));
+      }
+      if (resetCounter == 1) {
+        light_on = false;
+        led_mode = LIGHT_MODE_COMMON;
+        resetCounter = 0;
+      }else if (resetCounter > 0){
+        resetCounter -= 1;
+      }
     }
     else
     {
@@ -340,6 +376,11 @@ void action()
         float fan_duty = model.fan_duty;
         ESP_LOGI(MAIN_TAG, "Set duty: %lf", fan_duty);
         mkc_fan_set_duty(fan_duty);
+        if (led_mode == LIGHT_MODE_COMMON) {
+          led_strip_duty(data_model.fan_duty, &red, &green, &blue);
+          ESP_ERROR_CHECK(strip->set_pixel(strip, 0, red, green, blue));
+          ESP_ERROR_CHECK(strip->refresh(strip, 100));
+        }
         return ESP_OK;
         break;
       }
