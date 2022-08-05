@@ -20,8 +20,7 @@
 #include "include/mkc_protocol_adaptor.h"
 #include "esp32/rom/crc.h"
 #include "include/button.h"
-#include "driver/rmt.h"
-#include "include/led_strip.h"
+#include "include/mkc_led_module.h"
 
 #define MAIN_TAG "MAIN"
 
@@ -32,6 +31,8 @@
 #define MKC_PERSIST_MODULE
 #define MKC_CONTROL_MODULE
 #define MKC_RGB_MODULE
+// 设计中 TODO: 这个模式目前存在问题，手动模式下无法分辨是否有新的指令
+// #define MKC_SLEEP_MODULE
 
 #define LED_R_IO 27
 #define HALL_GPIO 32 // 13
@@ -43,9 +44,16 @@
 #define BLE_RESET_GPIO 39
 
 #define MKC_FAN_DUTY_DEFAULT 0
-
+// 基础计时器运行间隔100ms
 #define MKC_TIMER_INTERVAL 100
+// 基础计数器预设次数
 #define MKC_BASE_FACTOR 40
+// LED计数器预设次数
+#define MKC_LED_FACTOR 1
+// 休眠计数器预设次数
+#define MKC_SLEEP_FACTOR 300
+// LED渐变数
+#define MKC_LED_OFFSET 4
 // IR_Temperature
 uint8_t switch_is_on;
 
@@ -64,113 +72,59 @@ bool isLongpressContinue = false;
 int baseCounter = 0;
 
 int count = 0;
-
+// 重制计数器
 int resetCounter = 0;
+// LED计数器
+int ledCounter = 0;
+// 休眠计数器
+int sleepCounter = 0;
 
-// 灯
-// RGB灯
-bool light_on = false;
-enum light_mode {
-  LIGHT_MODE_COMMON,
-  LIGHT_MODE_RESET,
-};
-enum light_mode led_mode = LIGHT_MODE_COMMON;
-uint32_t red = 0;
-uint32_t green = 0;
-uint32_t blue = 0;
-uint16_t hue = 0;
-uint16_t start_rgb = 0;
-
-#define RMT_TX_CHANNEL RMT_CHANNEL_0
-
-#define EXAMPLE_CHASE_SPEED_MS (10)
-
-led_strip_t *strip;
-
-/**
- * @brief Simple helper function, converting HSV color space to RGB color space
- *
- * Wiki: https://en.wikipedia.org/wiki/HSL_and_HSV
- *
- */
-void led_strip_hsv2rgb(uint32_t h, uint32_t s, uint32_t v, uint32_t *r, uint32_t *g, uint32_t *b)
-{
-  h %= 360; // h -> [0,360]
-  uint32_t rgb_max = v * 2.55f;
-  uint32_t rgb_min = rgb_max * (100 - s) / 100.0f;
-
-  uint32_t i = h / 60;
-  uint32_t diff = h % 60;
-
-  // RGB adjustment amount by hue
-  uint32_t rgb_adj = (rgb_max - rgb_min) * diff / 60;
-
-  switch (i)
-  {
-  case 0:
-    *r = rgb_max;
-    *g = rgb_min + rgb_adj;
-    *b = rgb_min;
-    break;
-  case 1:
-    *r = rgb_max - rgb_adj;
-    *g = rgb_max;
-    *b = rgb_min;
-    break;
-  case 2:
-    *r = rgb_min;
-    *g = rgb_max;
-    *b = rgb_min + rgb_adj;
-    break;
-  case 3:
-    *r = rgb_min;
-    *g = rgb_max - rgb_adj;
-    *b = rgb_max;
-    break;
-  case 4:
-    *r = rgb_min + rgb_adj;
-    *g = rgb_min;
-    *b = rgb_max;
-    break;
-  default:
-    *r = rgb_max;
-    *g = rgb_min;
-    *b = rgb_max - rgb_adj;
-    break;
-  }
-}
-
-void led_strip_duty(uint8_t duty, uint32_t *r, uint32_t *g, uint32_t *b) {
-  uint8_t rgb_max = 255;
-  float duty_max = 100.f;
-  *r = rgb_max * (float)(duty > 33 && duty < 66 ? (duty - 33) : (duty <= 33 ? 0 : (66 - 33)) ) / (66.f - 33.f);
-  *g = rgb_max * (1 - (float)(duty > 66 ? (duty - 66) : 0 ) / (duty_max - 66.f));
-  *b = rgb_max * (float)(duty < 33 ? (33 - duty) : 0) / 33.f;
-}
-
-void led_strip_reset(int rc, uint32_t *r, uint32_t *g, uint32_t *b) {
-  if (rc % 2 == 0 && rc > 2) {
-    *r = 255.f;
-  }else{
-    *r = 0.f;
-  }
-  *g = 0.f;
-  if (rc == 2) {
-    *b = 255.f;
-  }else{
-    *b = 0.f;
-  }
-}
+// 休眠
+bool sleeping = false;
 
 void action()
 {
+  // LED 事件
+  ledCounter++;
+  if (ledCounter >= MKC_LED_FACTOR)
+  {
+    ledCounter = 0;
+#ifdef MKC_RGB_MODULE
+    if (mkc_led_light_is_on() == true && sleeping == false)
+    {
+      if (mkc_led_current_mode() == LIGHT_MODE_COMMON)
+      {
+        uint8_t fan_duty = (uint8_t)(mkc_fan_get_duty());
+        mkc_led_set_common(fan_duty);
+      }
+      else
+      {
+        mkc_led_set_reset(resetCounter);
+      }
+      if (resetCounter == 1)
+      {
+        mkc_led_set_off();
+        resetCounter = 0;
+      }
+      else if (resetCounter > 0)
+      {
+        resetCounter -= 1;
+      }
+    }
+    else
+    {
+      mkc_led_set_off();
+    }
+#endif
+  }
+  // 通用事件
   // MKC_BASE_FACTOR 次才执行
   baseCounter++;
   if (baseCounter >= MKC_BASE_FACTOR)
   {
     // if (true) {
     baseCounter = 0;
-    ESP_LOGI(MAIN_TAG, "Current Data || temp_a:%d.%d temp_o:%d.%d fan_duty:%d fan_rpm:%d R:%d G:%d B:%d", data_model.temp_ir_a_data.temp_int, data_model.temp_ir_a_data.temp_dec, data_model.temp_ir_o_data.temp_int, data_model.temp_ir_o_data.temp_dec, data_model.fan_duty, data_model.fan_rpm, red, green, blue);
+    ESP_LOGI(MAIN_TAG, "Current Data || temp_a:%d.%d temp_o:%d.%d fan_duty:%d fan_rpm:%d", data_model.temp_ir_a_data.temp_int, data_model.temp_ir_a_data.temp_dec, data_model.temp_ir_o_data.temp_int, data_model.temp_ir_o_data.temp_dec, data_model.fan_duty, data_model.fan_rpm);
 
 #ifdef MKC_HALL_COUNTER_MODULE
     data_model.fan_rpm = (uint16_t)(mkc_hallGetCounter() * 12);
@@ -289,7 +243,6 @@ void action()
         // ...
         if (ev.event == BUTTON_DOWN)
         {
-          
         }
         if (ev.event == BUTTON_HELD)
         {
@@ -303,52 +256,41 @@ void action()
           if (isLongpressContinue == true)
           {
             mkc_ble_module_reset();
-            light_on = true;
-            led_mode = LIGHT_MODE_RESET;
+            // light_on = true;
+            // led_mode = LIGHT_MODE_RESET;
             resetCounter = 50;
+            mkc_led_set_reset(resetCounter);
             isLongpressContinue = false;
-          }else{
-            led_mode = LIGHT_MODE_COMMON;
-            light_on = !light_on;
+          }
+          else
+          {
+            // led_mode = LIGHT_MODE_COMMON;
+            // light_on = !light_on;
+            mkc_led_set_common((uint8_t)(mkc_fan_get_duty()));
           }
         }
       }
     }
 #endif
 
-#ifdef MKC_RGB_MODULE
-    if (light_on == true)
+#ifdef MKC_SLEEP_MODULE
+    sleepCounter++;
+    if (sleepCounter >= MKC_SLEEP_FACTOR)
     {
-      if (led_mode == LIGHT_MODE_COMMON) {
-        // Build RGB values
-        // hue = start_rgb;
-        // led_strip_hsv2rgb(hue, 100, 100, &red, &green, &blue);
-        led_strip_duty(data_model.fan_duty, &red, &green, &blue);
-        // Write RGB values to strip driver
-        ESP_ERROR_CHECK(strip->set_pixel(strip, 0, red, green, blue));
-        // Flush RGB values to LEDs
-        ESP_ERROR_CHECK(strip->refresh(strip, 100));
-        // vTaskDelay(pdMS_TO_TICKS(EXAMPLE_CHASE_SPEED_MS));
-        // strip->clear(strip, 50);
-        // start_rgb += 1;
-      }else{
-        led_strip_reset(resetCounter, &red, &green, &blue);
-        ESP_ERROR_CHECK(strip->set_pixel(strip, 0, red, green, blue));
-        ESP_ERROR_CHECK(strip->refresh(strip, 100));
-      }
-      if (resetCounter == 1) {
-        light_on = false;
-        led_mode = LIGHT_MODE_COMMON;
-        resetCounter = 0;
-      }else if (resetCounter > 0){
-        resetCounter -= 1;
-      }
+      mkc_fan_set_duty(0);
+      sleeping = true;
     }
     else
     {
-      // Clear LED strip (turn off all LEDs)
-      ESP_ERROR_CHECK(strip->clear(strip, 100));
+      sleeping = false;
     }
+#endif
+  }
+
+  void resetSleepCounter()
+  {
+#ifdef MKC_SLEEP_MODULE
+    sleepCounter = 0;
 #endif
   }
 
@@ -376,11 +318,7 @@ void action()
         float fan_duty = model.fan_duty;
         ESP_LOGI(MAIN_TAG, "Set duty: %lf", fan_duty);
         mkc_fan_set_duty(fan_duty);
-        if (led_mode == LIGHT_MODE_COMMON) {
-          led_strip_duty(data_model.fan_duty, &red, &green, &blue);
-          ESP_ERROR_CHECK(strip->set_pixel(strip, 0, red, green, blue));
-          ESP_ERROR_CHECK(strip->refresh(strip, 100));
-        }
+        resetSleepCounter();
         return ESP_OK;
         break;
       }
@@ -532,14 +470,7 @@ void action()
 #endif
 
 #ifdef MKC_RGB_MODULE
-    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(27, RMT_TX_CHANNEL);
-    // set counter clock to 40MHz
-    config.clk_div = 2;
-    // install ws2812 driver
-    ESP_ERROR_CHECK(rmt_config(&config));
-    ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
-    led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(1, (led_strip_dev_t)config.channel);
-    strip = led_strip_new_rmt_ws2812(&strip_config);
+    mkc_led_module_init(MKC_LED_OFFSET);
 #endif
 
     // timer
